@@ -29,6 +29,7 @@ Other HEAT related publications:
  - [The Experimental Validation of HEAT on the ASDEX Upgrade Tokamak](https://doi.org/10.1080/15361055.2025.2478720), A Redl et al 2025
  - [3D modeling of n = 1 RMP driven heat fluxes on the SPARC tokamak PFCs using HEAT](https://iopscience.iop.org/article/10.1088/1741-4326/adf760/meta), M D'Abusco et al 2025
  - [Development and validation of non-axisymmetric heat flux simulations with 3D fields using the HEAT code](https://iopscience.iop.org/article/10.1088/1741-4326/adeff1), A Wingen et al 2025
+ - [Shadow masks predictions in SPARC tokamak plasma-facing components using HEAT code and machine learning methods](https://doi.org/10.1016/j.fusengdes.2025.115010), D Corona et al 2025
  - [HEAT simulation and IR data comparison for ST40 plasma-facing components](https://doi.org/10.1016/j.nme.2024.101791), E Tinacba et al 2024
  - SPARC power exhaust workflows using open source tools for plasma facing component design and operational scenario planning, APS DPP Tutorial, https://meetings.aps.org/Meeting/DPP23/Session/JT02.1 , presentation [here](https://docs.google.com/presentation/d/1QsxlfUS6zo_vAwRgFoKKztvUsIzq238u2JmYD6xtum4/edit?usp=sharing)
  - 3D ion gyro-orbit heat load predictions for NSTX-U, Looby et al, https://iopscience.iop.org/article/10.1088/1741-4326/ac8a05
