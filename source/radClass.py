@@ -338,16 +338,21 @@ class RAD:
         #memNeeded = np.dtype(np.float64).itemsize * self.Ni * self.Nj
         #print("Required memory for this calculation: {:f} GB".format(memNeeded / (1024**3)))
         memAvail = psutil.virtual_memory().available
-        print("Available memory: {:f} GB".format(memAvail / (1024**3)))  
+        print("Available CPU memory: {:f} GB".format(memAvail / (1024**3)))  
 
 
         print("Building radiation scene...")    
 
         # Initialize Mitsuba
         if mitsubaMode == 'cuda':
+            print("Using GPU")
             mi.set_variant('cuda_ad_rgb')
         else:
+            print("Using CPU")
             mi.set_variant('llvm_ad_rgb')
+
+        Float = mi.Float   # backend-appropriate float (cuda / llvm)
+        UInt  = mi.UInt
 
         scene = {'type': 'scene'}
         scene['path_int'] = {
@@ -373,10 +378,10 @@ class RAD:
         t = time.time()
         # Convert the numpy arrays to Dr.Jit dynamic arrays
         #tx,tx,tz,tp are source values for x,y,z,power
-        tx = dr.cuda.ad.Float(self.sources[:,0]) if mitsubaMode == 'cuda' else dr.llvm.ad.Float(self.sources[:,0])
-        ty = dr.cuda.ad.Float(self.sources[:,1]) if mitsubaMode == 'cuda' else dr.llvm.ad.Float(self.sources[:,1])
-        tz = dr.cuda.ad.Float(self.sources[:,2]) if mitsubaMode == 'cuda' else dr.llvm.ad.Float(self.sources[:,2])
-        tp = dr.cuda.ad.Float(self.sourcePower) if mitsubaMode == 'cuda' else dr.llvm.ad.Float(self.sourcePower)
+        tx = Float(self.sources[:, 0])
+        ty = Float(self.sources[:, 1])
+        tz = Float(self.sources[:, 2])
+        tp = Float(self.sourcePower)
 
 
         # Access the mesh object
@@ -422,9 +427,43 @@ class RAD:
 
         #dynamically allocate batch size based upon available memory
         if batch_size == "auto":
-            batch_size = int(2**32 / totFace  * 0.5)
-            if batch_size > N_sources:
-                batch_size = N_sources
+            if mitsubaMode == 'cuda':
+                free_mb = tools.get_free_gpu_memory_mb(0)
+                print(f"[HEAT] Free GPU memory: {free_mb} MB")
+
+                # Rough estimate: how many bytes per (source, face) pair do we use?
+                # We have a bunch of DrJit Float arrays of length totFace*size_i:
+                #   sx_batch, tx_batch, sy_batch, ty_batch, sz_batch, tz_batch,
+                #   tp_batch, sA, powTmp, powCount, direction, pow, primI, etc.
+                #
+                # Let's assume ~16 Float arrays + 1 UInt array, and use 8 bytes/element
+                # as a conservative upper bound.
+                bytes_per_elem = 8
+                n_arrays       = 16
+                overhead_bytes = 512 * 1024 * 1024  # reserve 512 MB for Mitsuba, OptiX, etc.
+
+                free_bytes = max(0, free_mb * 1024**2 - overhead_bytes)
+
+                if free_bytes <= 0:
+                    # Fallback to a conservative static batch size
+                    batch_size = min(N_sources, 1024)
+                else:
+                    # free_bytes ≈ batch_size * totFace * bytes_per_elem * n_arrays
+                    batch_size_est = int(free_bytes / (totFace * bytes_per_elem * n_arrays))
+
+                    # stay within a sensible range
+                    batch_size = max(1, min(N_sources, batch_size_est))
+
+                print(f"[HEAT] Auto GPU batch size: {batch_size}")
+            else:
+                # CPU path: keep your existing heuristic, maybe with a lower cap
+                batch_size = int(2**32 / totFace * 0.5)
+                if batch_size > N_sources:
+                    batch_size = N_sources
+                print(f"[HEAT] Auto CPU batch size: {batch_size}")
+
+
+
 
         print("Using batch size of: {:d}".format(batch_size))
 
@@ -445,30 +484,8 @@ class RAD:
 
             #dynamically adjust size of batch depending on how many
             #sources are left to calculate
-            if batch_size == 1:
-                size_i = batch_size
-            elif (N_sources - (batch_size+i)) < 0:
-                size_i = np.abs(N_sources - i)
-                #if we change size_i, the powCount array will be a different 
-                #dimension.  so we take the existing powCount and export it
-                #to the targetPower array before changing the size for the 
-                #last loop iteration where size_i changes
-                targetPower += np.sum(np.array(powCount.copy()).reshape(size_i, totFace), axis=0)
-                #now change the size of powCount for the last iteration
-                if mitsubaMode == 'cuda':
-                    powCount = dr.zeros(dr.cuda.ad.Float, totFace*size_i)
-                else:
-                    powCount = dr.zeros(dr.llvm.ad.Float, totFace*size_i)
-            else:
-                size_i = batch_size
-
-
-            #initialize the power tally if this is the first iteration
-            if i==0:
-                if mitsubaMode == 'cuda':
-                    powCount = dr.zeros(dr.llvm.ad.Float, totFace*size_i)
-                else:
-                    powCount = dr.zeros(dr.llvm.ad.Float, totFace*size_i)
+            remaining = N_sources - i
+            size_i = min(batch_size, remaining)
 
             print("\n=== Running Sources: {:d} - {:d} ===".format(i, i+size_i))
             mem_info = process.memory_info()
@@ -478,18 +495,11 @@ class RAD:
             dummy = np.ones((size_i))
 
             #take all the x values from the sensor and pair with all the x values from the power distribution
-            if mitsubaMode == 'cuda':
-                sx_batch,tx_batch = dr.meshgrid(dr.cuda.ad.Float(center[:,0]),dr.cuda.ad.Float(tx[i:i+size_i]),indexing = 'xy') #indexing ij makes it so that the first numpower points of sx are all the same (tx[0])
-                sy_batch,ty_batch = dr.meshgrid(dr.cuda.ad.Float(center[:,1]),dr.cuda.ad.Float(ty[i:i+size_i]),indexing = 'xy')
-                sz_batch,tz_batch = dr.meshgrid(dr.cuda.ad.Float(center[:,2]),dr.cuda.ad.Float(tz[i:i+size_i]),indexing = 'xy')
-                _,tp_batch = dr.meshgrid(dr.cuda.ad.Float(center[:,0]),dr.cuda.ad.Float(tp[i:i+size_i]),indexing = 'xy') #make the power meshed in the same way
-                sA,_ = dr.meshgrid(dr.cuda.ad.Float(area),dr.cuda.ad.Float(dummy),indexing = 'xy')
-            else:
-                sx_batch,tx_batch = dr.meshgrid(dr.llvm.ad.Float(center[:,0]),dr.llvm.ad.Float(self.sources[i:i+size_i,0]),indexing = 'xy') #indexing ij makes it so that the first numpower points of sx are all the same (tx[0])
-                sy_batch,ty_batch = dr.meshgrid(dr.llvm.ad.Float(center[:,1]),dr.llvm.ad.Float(self.sources[i:i+size_i,1]),indexing = 'xy')
-                sz_batch,tz_batch = dr.meshgrid(dr.llvm.ad.Float(center[:,2]),dr.llvm.ad.Float(self.sources[i:i+size_i,2]),indexing = 'xy')
-                _,tp_batch = dr.meshgrid(dr.llvm.ad.Float(center[:,0]),dr.llvm.ad.Float(self.sourcePower[i:i+size_i]),indexing = 'xy') #make the power meshed in the same way
-                sA,_ = dr.meshgrid(dr.llvm.ad.Float(area),dr.llvm.ad.Float(dummy),indexing = 'xy')
+            sx_batch,tx_batch = dr.meshgrid(Float(center[:,0]),Float(tx[i:i+size_i]),indexing = 'xy') #indexing ij makes it so that the first numpower points of sx are all the same (tx[0])
+            sy_batch,ty_batch = dr.meshgrid(Float(center[:,1]),Float(ty[i:i+size_i]),indexing = 'xy')
+            sz_batch,tz_batch = dr.meshgrid(Float(center[:,2]),Float(tz[i:i+size_i]),indexing = 'xy')
+            _,tp_batch = dr.meshgrid(Float(center[:,0]),Float(tp[i:i+size_i]),indexing = 'xy') #make the power meshed in the same way
+            sA,_ = dr.meshgrid(Float(area),Float(dummy),indexing = 'xy')
 
             #print('Time to meshgrid: ' + str(time.time() - t))
 
@@ -513,24 +523,23 @@ class RAD:
             #gives the index of the primitive triangle that was hit
             primI = si.prim_index
             pow = dr.abs(dr.dot(dr.normalize(si.n),direction)) * sA * tp_batch/(4*dr.pi*dr.power(si.t,2))
-
-            #finitePow = dr.isfinite(pow)
-            if mitsubaMode == 'cuda':
-                piA = dr.arange(dr.cuda.ad.UInt,totFace)
-                powTmp = dr.zeros(dr.cuda.ad.Float, totFace*size_i)
-            else:
-                piA = dr.arange(dr.llvm.ad.UInt,totFace)
-                powTmp = dr.zeros(dr.llvm.ad.Float, totFace*size_i)
-            piA = dr.tile(piA,size_i)
-            #mask = dr.eq(primI,piA)
-            mask = primI == piA
-            #mask2 = dr.eq(mask, active)
-            #mask3 = dr.eq(mask2, finitePow)
+            
+            powTmp = dr.zeros(Float, totFace*size_i)
+            piA = dr.arange(UInt,totFace)
+            piA = dr.tile(piA, size_i)
+            mask = (primI == piA)
             correctHit = dr.compress(mask)
 
-            #print('t6: '+str(time.time()-t))
-            tmp = dr.gather(type(pow),source = pow, index = correctHit) 
+            tmp = dr.gather(type(pow), source=pow, index=correctHit)
             dr.scatter(powTmp, value=tmp, index=correctHit)
+
+            # Now: collapse THIS batch's result to host and accumulate
+            pow_np = np.array(powTmp, copy=False).reshape(size_i, totFace)
+            targetPower += pow_np.sum(axis=0)
+
+            # Optional, to be extra nice to DrJit:
+            # - ensure computation is evaluated and we drop references
+            del powTmp, pow_np, tmp, mask, correctHit
 
             ###for troubleshooting.  print data for a source -> target trace
             #srcIdx = 1047
@@ -550,13 +559,6 @@ class RAD:
             #powCount += self.traceMitsuba(sx_batch,sy_batch,sz_batch,
             #                              tx_batch,ty_batch,tz_batch,tp_batch,sA,
             #                              scene, mitsubaMode, totFace, size_i)
-
-            powCount += powTmp
-
-            if i == (N_sources - batch_size):
-                targetPower += np.sum(np.array(powCount).reshape(size_i, totFace), axis=0)
-                #loopFlag = 1
-
             ## Take a snapshot of current memory allocations
             #snapshot = tracemalloc.take_snapshot()
             ## Get the top 10 memory blocks
@@ -865,7 +867,7 @@ class RAD:
         #memNeeded = np.dtype(np.float64).itemsize * self.Ni * self.Nj
         #print("Required memory for this calculation: {:f} GB".format(memNeeded / (1024**3)))
         memAvail = psutil.virtual_memory().available
-        print("Available memory: {:f} GB".format(memAvail / (1024**3)))  
+        print("Available CPU memory: {:f} GB".format(memAvail / (1024**3)))  
 
         #setup netcdf (this is slow)
         if self.saveRadFrac == True:

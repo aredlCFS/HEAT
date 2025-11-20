@@ -5,8 +5,6 @@
 #             requires user to have the volumes below locally on host
 #             if not, comment out the line for the dir you don't have
 #             if so, change paths to match your machine
-version: "3.0"
-
 services:
   HEAT:
     #user: ${UID}:${GID}
@@ -28,13 +26,22 @@ services:
     tty: true        # docker run -t
     #if you want to set env vars, do it here:
     environment:
-    - dockerUID=$dockerUID
-    - dockerGID=$dockerGID
-    - UID=$dockerUID
-    - GID=$dockerGID
-    - OMPI_ALLOW_RUN_AS_ROOT=1
-    - OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
-
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics 
+      - dockerUID=$dockerUID
+      - dockerGID=$dockerGID
+      - UID=$dockerUID
+      - GID=$dockerGID
+      - OMPI_ALLOW_RUN_AS_ROOT=1
+      - OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+    #for NVIDIA GPUs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all         # or 1
+              capabilities: [gpu]
 #NOTES:
 #to run HEAT in batch mode, first bind mount the /root/terminal directory to your
 #local directory with the batchFile, then run:
