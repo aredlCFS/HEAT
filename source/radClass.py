@@ -462,17 +462,19 @@ class RAD:
                     batch_size = N_sources
                 print(f"[HEAT] Auto CPU batch size: {batch_size}")
 
-
-
-
         print("Using batch size of: {:d}".format(batch_size))
-
         print('Time to prepare mesh: ' + str(time.time() - t))
 
         t0 = time.time()
         
         targetPower = np.zeros((totFace))
 
+        center_x = Float(center[:, 0])
+        center_y = Float(center[:, 1])
+        center_z = Float(center[:, 2])
+        area_f   = Float(area)
+        # Create an index array [0, 1, 2, ... totFace-1]
+        target_indices_arr = dr.arange(UInt, totFace)
 
         #import tracemalloc
         #tracemalloc.start()
@@ -494,13 +496,13 @@ class RAD:
 
             dummy = np.ones((size_i))
 
-            #take all the x values from the sensor and pair with all the x values from the power distribution
-            sx_batch,tx_batch = dr.meshgrid(Float(center[:,0]),Float(tx[i:i+size_i]),indexing = 'xy') #indexing ij makes it so that the first numpower points of sx are all the same (tx[0])
-            sy_batch,ty_batch = dr.meshgrid(Float(center[:,1]),Float(ty[i:i+size_i]),indexing = 'xy')
-            sz_batch,tz_batch = dr.meshgrid(Float(center[:,2]),Float(tz[i:i+size_i]),indexing = 'xy')
-            _,tp_batch = dr.meshgrid(Float(center[:,0]),Float(tp[i:i+size_i]),indexing = 'xy') #make the power meshed in the same way
-            sA,_ = dr.meshgrid(Float(area),Float(dummy),indexing = 'xy')
-
+            sx_batch, tx_batch = dr.meshgrid(center_x, tx[i:i+size_i], indexing='xy')
+            sy_batch, ty_batch = dr.meshgrid(center_y, ty[i:i+size_i], indexing='xy')
+            sz_batch, tz_batch = dr.meshgrid(center_z, tz[i:i+size_i], indexing='xy')
+            _, tp_batch        = dr.meshgrid(center_x, tp[i:i+size_i], indexing='xy')
+            sA,_               = dr.meshgrid(area_f, Float(dummy), indexing='xy')
+            dummy_batch_uint = dr.zeros(UInt, size_i)
+            ti_batch, _ = dr.meshgrid(target_indices_arr, dummy_batch_uint, indexing='xy')
             #print('Time to meshgrid: ' + str(time.time() - t))
 
             #mem_info = process.memory_info()
@@ -516,57 +518,35 @@ class RAD:
 
             #t = time.time()
             si = scene.ray_intersect(ray)
-            #valid = si.is_valid()
-            #active = mi.Bool(valid)
-            #print('Time to run intersection: '+str(time.time()-t))
-            
-            #gives the index of the primitive triangle that was hit
-            primI = si.prim_index
             pow = dr.abs(dr.dot(dr.normalize(si.n),direction)) * sA * tp_batch/(4*dr.pi*dr.power(si.t,2))
+            #print('Time to run intersection: '+str(time.time()-t))
+
+            primI = si.prim_index
+
+            # Check 1: Did we hit anything? (si.is_valid())
+            # Check 2: Is the math finite?
+            # Check 3: Did we hit the specific face we aimed at? (primI == ti_batch)
+            #          If primI != ti_batch, it means we hit an obstacle (occlusion).
             
-            powTmp = dr.zeros(Float, totFace*size_i)
-            piA = dr.arange(UInt,totFace)
-            piA = dr.tile(piA, size_i)
-            mask = (primI == piA)
-            correctHit = dr.compress(mask)
+            is_visible = primI == ti_batch
+            valid_hit  = si.is_valid()
+            finite_val = dr.isfinite(pow) & dr.isfinite(si.t)
+            
+            # Combine masks
+            active = valid_hit & finite_val & is_visible
 
-            tmp = dr.gather(type(pow), source=pow, index=correctHit)
-            dr.scatter(powTmp, value=tmp, index=correctHit)
+            # Apply mask
+            pow_valid = dr.select(active, pow, Float(0))
 
-            # Now: collapse THIS batch's result to host and accumulate
-            pow_np = np.array(powTmp, copy=False).reshape(size_i, totFace)
-            targetPower += pow_np.sum(axis=0)
+            # 6. Accumulation
+            # Since we enforced (primI == ti_batch), we can scatter to either index.
+            # Using ti_batch allows us to map directly to the target array structure.
+            # We accumulate into a temporary buffer for this batch
+            acc = dr.zeros(Float, totFace)
+            dr.scatter_reduce(dr.ReduceOp.Add, acc, pow_valid, ti_batch)
 
-            # Optional, to be extra nice to DrJit:
-            # - ensure computation is evaluated and we drop references
-            del powTmp, pow_np, tmp, mask, correctHit
-
-            ###for troubleshooting.  print data for a source -> target trace
-            #srcIdx = 1047
-            #roiIdx = 16614
-            #if np.logical_and(srcIdx > i, srcIdx < i+size_i):
-            #    idxBatch = srcIdx - i
-            #    print(self.sourcePower[srcIdx])
-            #    print(center[roiIdx])
-            #    print(area[roiIdx])
-            #    print(np.array(tp_batch).reshape(size_i, totFace)[idxBatch, roiIdx])
-            #    print(np.array(pow).reshape(size_i, totFace)[idxBatch,roiIdx])
-            #    print(np.array(powTmp).reshape(size_i, totFace)[idxBatch, roiIdx])
-            #    print(np.array(sA).reshape(size_i, totFace)[idxBatch, roiIdx])
-            #    print(np.array(dr.abs(dr.dot(dr.normalize(si.n),direction))).reshape(size_i, totFace)[idxBatch, roiIdx])
-            #    print(np.array(si.t).reshape(size_i, totFace)[idxBatch, roiIdx])
-            #    input()
-            #powCount += self.traceMitsuba(sx_batch,sy_batch,sz_batch,
-            #                              tx_batch,ty_batch,tz_batch,tp_batch,sA,
-            #                              scene, mitsubaMode, totFace, size_i)
-            ## Take a snapshot of current memory allocations
-            #snapshot = tracemalloc.take_snapshot()
-            ## Get the top 10 memory blocks
-            #top_stats = snapshot.statistics('lineno')
-            #print(f"Iteration {i}: Top 10 memory consuming allocations:")
-            #for index, stat in enumerate(top_stats[:10], 1):
-            #    print(f"{index}: {stat}")
-
+            # Move batch result to CPU and add to total
+            targetPower += np.array(acc, copy=False)
     
             mem_info = process.memory_info()
             usage = mem_info.rss / (1024 * 1024)
