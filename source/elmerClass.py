@@ -291,7 +291,32 @@ class FEM:
         np.savetxt(self.elmerOutDir + name, nodeArray, fmt="% .9E", delimiter=',')
 
         return
-    
+
+    def copyReXinit(self, PFC):
+        """
+        Takes a PFC object, interpolates the qDiv result onto the surface node of
+        a corresponding volume mesh, then saves a .csv file with columns nodeId, MW/m2.
+
+        SIFfile must contain a Variable, nodalHFprefix, in BC section.  
+        t is the timestep.        
+        """
+        #get the prefix
+        src = self.elmerDir + PFC.SIFfile
+        with open(src, 'r') as f:
+            for line in f:
+                if "nodalReXprefix" in line:
+                    prefix = line.split("String ")[-1].strip()
+
+        ReXfile = prefix + '.dat'
+        #copy Rex init from elmerDir to elmerOutDir
+        src = self.elmerDir + ReXfile
+        dst = self.elmerOutDir + ReXfile
+        try:
+            shutil.copyfile(src, dst)
+        except:
+            print('no Rex init file provided')
+        return
+       
     def interpolateHFinTime(self, hfFile, hfFileNext, tLast, tNext, t):
         """
         given a heat flux file from last timestep, hfFile, and a heat flux
