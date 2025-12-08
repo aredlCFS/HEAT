@@ -90,12 +90,16 @@ Solver 4
   Linear System Direct Method = MUMPS
 End
 
+Solver 5
+    Exec Solver = After Simulation
+    Procedure = "HEATLibrary" "WriteReX"
+    Filename = "ReX_results.dat"
+End
 
 Equation 1
   Name = "Equation 1"
-  Active Solvers(4) = 1 2 3 4
+  Active Solvers(5) = 1 2 3 4 5
 End
-
 Material 1
   Name = "Steel (alloy - generic)"
   Heat Capacity = 976.0
@@ -283,7 +287,7 @@ Material 3
   avrami_n = Real 1.0
   avrami_k0 = Real 4446601450.0
   avrami_E = Real 3.0
-  avrami_Tref = Real 1200.0
+  nodalReXprefix = String noderex0_compound_init
 End
 
 Body Force 1
