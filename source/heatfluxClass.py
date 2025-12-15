@@ -116,6 +116,9 @@ class heatFlux:
           HEAT runs photon radiation data, tag would be HF_rad and HEAT would read files
           named HF_rad.csv.  Set to None when no file should be read.
         :rzqFile: Path for the rzqprofile that contains a csv file with columns R(m),Z(m),q||(W/m2)
+        :rayTracer: defines which render engine to use for ray tracing.  Options are {mitsuba_gpu, 
+          mitsuba_cpu, open3d, heat}.  'mitsuba_gpu' requires cuda installation.  'heat' is legacy and
+          slow.
 
         """
 
@@ -147,6 +150,7 @@ class heatFlux:
                             'qFilePath',
                             'qFileTag',
                             'rzqFile',
+                            'rayTracer',
                             ]
         return
 

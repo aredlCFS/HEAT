@@ -62,8 +62,8 @@ class RAD:
           read from a file will be duplicated Ntor times between phiMin and phiMax.
         :phiMax: Maximum toroidal angle of emission extent [degrees].  The emission profile
           read from a file will be duplicated Ntor times between phiMin and phiMax.
-        :rayTracer: defines which ray tracer to use.  can be open3d (default), mitsuba, 
-          or heat (legacy and slow)
+        :rayTracer: defines which ray tracer to use.  can be open3d (default), mitsuba_cpu, 
+          mitsuba_gpu, or heat (legacy and slow)
         :Prad_mult: multiplier to apply to the R,Z,Prad emission source points
         :saveRadFrac: boolean that determines if we should save a matrix with the mapping 
           between emission source points and each mesh triangle.  Will save a Ni x Nj matrix
@@ -260,7 +260,7 @@ class RAD:
         self.Nj = len(self.targetCtrs)
 
         #build mesh for mitsuba3
-        if self.rayTracer=='mitsuba':
+        if 'mitsuba' in self.rayTracer:
             combinedMesh = CAD.createEmptyMesh()
             for m in targetMeshes:
                 combinedMesh.addFacets(m.Facets)

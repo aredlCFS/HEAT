@@ -1094,7 +1094,7 @@ class engineObj():
                     lqCNmode,lqCFmode,lqPNmode,lqPFmode,SMode,
                     qBG,P,radFrac,fG,
                     qFilePath,qFileTag,
-                    rzqFile, rzqFiledata=None, tIdx=0):
+                    rzqFile, rayTracer, rzqFiledata=None, tIdx=0):
         """
         get heat flux inputs from gui or input file
         """
@@ -1121,6 +1121,7 @@ class engineObj():
         self.HF.lqPFmode = lqPFmode
         self.HF.SMode = SMode
         self.HF.fG = fG
+        self.HF.rayTracer = str(rayTracer).strip()
 
         allowed_qTags = [None, 'none', 'NA', 'None', 'N']
         if qFileTag in allowed_qTags:
@@ -1280,6 +1281,7 @@ class engineObj():
                          self.HF.qFilePath,
                          self.HF.qFileTag,
                          self.HF.rzqFile,
+                         self.HF.rayTracer,
                          rzqFiledata,
                          tIdx)
         return
@@ -2984,7 +2986,7 @@ class engineObj():
         return
 
     #--- Optical approximation ---
-    def HF_PFC(self, PFC, repeatIdx=None, tag=None, rayTriMode='open3d'):
+    def HF_PFC(self, PFC, repeatIdx=None, tag=None):
         """
         meat and potatoes of the HF calculation.  Called in loop or by parallel
         processes for each PFC object.  Only calculates optical heat flux
@@ -2999,15 +3001,11 @@ class engineObj():
             #check if this is a repeated MHD EQ
             #and that the inputs have not changed
             if (repeatIdx == None) or (self.newInputsFlag == True):
-                if rayTriMode=='open3d':
-                    #ray triangle calcs using open3D
-                    PFC.findOpticalShadowsOpen3D(self.MHD,self.CAD)
-                    #this function runs all trace steps at one time, rather than walking up the field line:
-                    #PFC.findOpticalShadowsOpen3DBatch(self.MHD,self.CAD)
-                else:
-                    #original HEAT homebrew MT ray-triangle method
-                    PFC.findShadows_structure(self.MHD, self.CAD)
-
+                #---shadowMask calculation
+                PFC.findOpticalShadows(self.MHD,self.CAD,self.HF.rayTracer,batchMode=False) #walk up field line
+                #PFC.findOpticalShadows(self.MHD,self.CAD,self.HF.rayTracer,batchMode=True) #entire trace at once
+                #original HEAT homebrew MT ray-triangle method
+                #PFC.findShadows_structure(self.MHD, self.CAD)
             else:
                 PFC.shadowed_mask = PFC.shadowMasks[repeatIdx].copy()
 
@@ -3111,17 +3109,24 @@ class engineObj():
         return
 
     #--- Radiated power (photons) ---
-    def radPower(self,PFC, mitsubaMode='cuda'):
+    def radPower(self,PFC):
         """
         runs the radiated power calculation
         """
+        if self.RAD.rayTracer == 'mitsuba_gpu':
+            mode = 'cuda'
+        elif self.RAD.rayTracer == 'mitsuba_cuda':
+            mode = 'cuda'
+        else:
+            mode = 'cpu'
+
         #setup the radiated power calculation
         self.RAD.preparePowerTransfer(PFC, self.CAD)
         #trace rays
-        if self.RAD.rayTracer=='mitsuba':
+        if 'mitsuba' in self.RAD.rayTracer:
             print("Using Mitsuba")
             #calculate photon load on PFC using mitsuba JIT or numpy
-            self.RAD.calculatePowerTransferMitsubaJIT(mitsubaMode=mitsubaMode, fType='ply') 
+            self.RAD.calculatePowerTransferMitsubaJIT(mitsubaMode=mode, fType='ply') 
             #self.RAD.calculatePowerTransferMitsubaNumpy(mitsubaMode='cpu', fType='ply')     
         elif self.RAD.rayTracer=="heat":
             #calculate photon load on PFC using legacy methods (brute force)
