@@ -2069,8 +2069,9 @@ class engineObj():
 
             #if we are doing all PFCs in one pass
             if self.CAD.mergedPFCs == True:
-                #build a merged PFC from all PFCs
-                PFCs = [pfcClass.mergedPFCs(PFClist, self.MHD, self.tsSigFigs, self.shotSigFigs, self.chmod, self.UID, self.GID)]
+                if tIdx == 0:
+                    #build a merged PFC from all PFCs
+                    PFCs = [pfcClass.mergedPFCs(self.PFCs, self.MHD, self.tsSigFigs, self.shotSigFigs, self.chmod, self.UID, self.GID)]
             #if we are doing PFCs one by one
             else:
                 PFCs = PFClist
@@ -2088,7 +2089,7 @@ class engineObj():
                 #set up time and equilibrium
                 PFC.t = t
                 PFC.ep = PFC.EPs[tIdx]
-                PFC.shadowed_mask = PFC.shadowMasks[tIdx]
+                PFC.shadowed_mask = PFC.shadowMasks[tIdx].copy()
                 #bfield info for this timestep
                 r,z,phi = tools.xyz2cyl(PFC.centers[:,0],PFC.centers[:,1],PFC.centers[:,2])
                 PFC.BNorms = self.MHD.Bfield_pointcloud(PFC.ep, r, z, phi, powerDir=None, normal=True)
@@ -2143,7 +2144,7 @@ class engineObj():
                         #read from file failed, run regular q calculation
                         if val == -1:
                             self.HF_PFC(PFC, repeatIdx, PFC.tag)
-                    PFC.shadowMasks[tIdx] = PFC.shadowed_mask
+                    PFC.shadowMasks[tIdx] = PFC.shadowed_mask.copy()
                     PFC.powerSumOptical[tIdx] = self.HF.power_sum_mesh(PFC, mode='optical')
                     print('\nMaximum optical heat load on tile: {:f}'.format(max(PFC.qDiv)))
                     print('Theoretical optical power to this divertor: {:f}'.format(self.HF.Psol*PFC.powerFrac*self.HF.elecFrac))

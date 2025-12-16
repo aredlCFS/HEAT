@@ -1199,7 +1199,6 @@ class PFC(shadowKernels):
                                                      self.gridfileStruct, self.structOutfile,
                                                      targetPoints, targetNorms, targetCtrs,
                                                      self.t, self.ep, rayTriMode, shadowMaskClouds)
-
         return
 
 
@@ -2828,6 +2827,7 @@ class mergedPFCs(PFC):
                 PFC.qDiv = self.qDiv[use]
                 PFC.shadowed_mask = self.shadowed_mask[use]
                 PFC.qOpticalList.append(PFC.qDiv)
+                PFC.shadowMasks.append(PFC.shadowed_mask)
                 PFC.t = self.t
 
                 #write all the files
