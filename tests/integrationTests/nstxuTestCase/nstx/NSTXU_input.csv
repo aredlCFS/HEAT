@@ -2,6 +2,12 @@
 # Format is: Variable, Value
 # See HEAT readthedocs or code comments for descriptions
 #=============================================================
+#                General Variables
+#=============================================================
+#rayTracer, mitsuba_cpu
+#rayTracer, mitsuba_gpu
+rayTracer, open3d
+#=============================================================
 #                IO Variables
 #=============================================================
 vtpMeshOut, True
@@ -75,7 +81,6 @@ Ntor, 5
 Nref, 1
 phiMin, 20
 phiMax, 35
-rayTracer, open3d
 Prad_mult, 1.0
 saveRadFrac, True
 #==============================================================
