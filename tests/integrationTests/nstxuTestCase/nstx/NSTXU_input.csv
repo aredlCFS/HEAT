@@ -2,6 +2,12 @@
 # Format is: Variable, Value
 # See HEAT readthedocs or code comments for descriptions
 #=============================================================
+#                General Variables
+#=============================================================
+#rayTracer, mitsuba_cpu
+#rayTracer, mitsuba_gpu
+rayTracer, open3d
+#=============================================================
 #                IO Variables
 #=============================================================
 vtpMeshOut, True
@@ -16,6 +22,7 @@ overWriteMask, True
 xT, None
 yT, None
 zT, None
+mergedPFCs, True
 #==============================================================
 #                MHD Variables
 #==============================================================
@@ -60,8 +67,8 @@ N_gyroSteps, 8
 gyroTraceLength, 10
 gyroT_eV, 100
 N_vSlice, 1
-N_vPhase, 3
-N_gyroPhase, 3
+N_vPhase, 2
+N_gyroPhase, 2
 ionMassAMU, 2.014
 vMode, single
 ionFrac,0.5
@@ -74,9 +81,8 @@ Ntor, 5
 Nref, 1
 phiMin, 20
 phiMax, 35
-rayTracer, mitsuba
 Prad_mult, 1.0
-saveRadFrac, False
+saveRadFrac, True
 #==============================================================
 #                OpenFOAM Variables
 #==============================================================

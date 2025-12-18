@@ -116,6 +116,9 @@ class heatFlux:
           HEAT runs photon radiation data, tag would be HF_rad and HEAT would read files
           named HF_rad.csv.  Set to None when no file should be read.
         :rzqFile: Path for the rzqprofile that contains a csv file with columns R(m),Z(m),q||(W/m2)
+        :rayTracer: defines which render engine to use for ray tracing.  Options are {mitsuba_gpu, 
+          mitsuba_cpu, open3d, heat}.  'mitsuba_gpu' requires cuda installation.  'heat' is legacy and
+          slow.
 
         """
 
@@ -147,6 +150,7 @@ class heatFlux:
                             'qFilePath',
                             'qFileTag',
                             'rzqFile',
+                            'rayTracer',
                             ]
         return
 
@@ -914,6 +918,7 @@ class heatFlux:
             frac = 1.0
         return frac
 
+
 #===============================================================================
 #                   Heat flux functions and helper functions
 #===============================================================================
@@ -936,7 +941,7 @@ class heatFlux:
         f = scinter.UnivariateSpline(p, R, s = 0, ext = 'const')	# psi outside of spline domain return the boundary value
         return f(psi)
 
-    def getHFprofile(self, PFC, mafotPsi=False):
+    def getHFprofile(self, PFC, mafotPsi=False, mergePFC=False):
         """
         Calculates heat flux profile from psi.  Default is an Eich profile.
 
@@ -1034,12 +1039,12 @@ class heatFlux:
             log.info("S: {} [mm]".format(self.S))
 
 
-        #Scale by fraction of power going to this PFC's divertor
-        PFC.powerFrac = self.getDivertorPowerFraction(PFC.DivCode)
-        q *= PFC.powerFrac
-        print("PFC "+PFC.name+" has {:.2f}% of the total power".format(PFC.powerFrac*100.0))
-        log.info("PFC "+PFC.name+" has {:.2f}% of the total power".format(PFC.powerFrac*100.0))
+        #legacy method.  can be deleted after HEAT v4.5.  this now happens for each mesh element in PFCclass.py
+        #PFC.powerFrac = self.getDivertorPowerFraction(PFC.DivCode)
+        #print("PFC "+PFC.name+" has {:.2f}% of the total power".format(PFC.powerFrac*100.0))
+        #log.info("PFC "+PFC.name+" has {:.2f}% of the total power".format(PFC.powerFrac*100.0))
 
+        q *= PFC.divFracs
         return q
 
 
