@@ -4337,11 +4337,11 @@ class engineObj():
             #tools.makeDir(partDir, clobberFlag=True, mode=self.chmod, UID=self.UID, GID=self.GID)
             #copy heatFoam template directory to this location
             try:
-                shutil.copytree(self.OF.templateCase, partDir, copy_function=shutil.copyfile)
+                tools.copytree(self.OF.templateCase, partDir)
                 if self.OF.OFtMin != 0:
                     t0 = partDir+'/0'
                     t0new = partDir+'/{:f}'.format(self.OF.OFtMin).rstrip('0').rstrip('.')
-                    shutil.copytree(t0, t0new, copy_function=shutil.copyfile)
+                    tools.copytree(t0, t0new)
                     shutil.rmtree(t0)
             except OSError as e:
                 print('COULD NOT COPY TEMPLATE DIRECTORY!  Aborting!')

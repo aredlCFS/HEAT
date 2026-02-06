@@ -33,16 +33,27 @@ class tools:
 
     def savetxt(self, fname, *args, **kwargs):
         """
-        Wrapper around np.savetxt that removes existing file first.
-        Mountpoint S3 doesn't support overwriting via open('w') on existing files,
-        so we delete-then-write instead.
+        Wrapper around np.savetxt that opens the file handle ourselves.
+        Modern numpy uses temp file + os.replace() internally when given a
+        filename string, which fails on S3 (rename not supported).
+        Passing a file handle bypasses that entirely.
         """
-        if os.path.isfile(fname):
-            try:
-                os.remove(fname)
-            except OSError:
-                pass
-        np.savetxt(fname, *args, **kwargs)
+        with open(fname, 'w') as fh:
+            np.savetxt(fh, *args, **kwargs)
+
+    def copytree(self, src, dst):
+        """
+        S3-compatible copytree. shutil.copytree calls copystat on directories
+        which fails on S3 (chmod/utime not supported). This just copies files.
+        """
+        os.makedirs(dst, exist_ok=True)
+        for item in os.listdir(src):
+            s = os.path.join(src, item)
+            d = os.path.join(dst, item)
+            if os.path.isdir(s):
+                self.copytree(s, d)
+            else:
+                shutil.copyfile(s, d)
 
     def setupNumberFormats(self, tsSigFigs=6, shotSigFigs=6):
         """

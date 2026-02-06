@@ -354,7 +354,7 @@ class OpenFOAM():
             #overWriteMask is True if STP file was modified since last use
             if overWriteMask == False:
                 try:
-                    shutil.copytree(file, newFile)
+                    tools.copytree(file, newFile)
                     print('Copied existing 3D mesh')
                 except:
                     print('\nProblem copying 3D mesh...possibly doesnt exist...creating')
@@ -394,7 +394,7 @@ class OpenFOAM():
 
         #Now copy this mesh to the 3D meshes folder for future use
         #tools.makeDir(newFile, clobberFlag=False, mode=self.chmod, UID=self.UID, GID=self.GID)
-        shutil.copytree(newFile, file, copy_function=shutil.copyfile)
+        tools.copytree(newFile, file)
         #set tree permissions
         tools.recursivePermissions(self.meshDir, self.UID, self.GID, self.chmod)
 # This method left here for reference:
