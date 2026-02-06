@@ -65,8 +65,8 @@ def setup_logging(logfile_path=None, level=logging.INFO, format='%(message)s'):
             root_logger.removeHandler(handler)
 
     # Create the new File Handler
-    # Try RotatingFileHandler first (log rotation on POSIX), fall back to plain
-    # FileHandler for S3/non-POSIX filesystems that don't support append or rename
+    # Try RotatingFileHandler (POSIX) -> FileHandler (S3) -> stderr (last resort)
+    file_handler = None
     try:
         file_handler = logging.handlers.RotatingFileHandler(
             logfile_path,
@@ -74,21 +74,32 @@ def setup_logging(logfile_path=None, level=logging.INFO, format='%(message)s'):
             backupCount=5
         )
     except OSError:
-        file_handler = logging.FileHandler(logfile_path, mode='w')
-    file_handler.setFormatter(formatter)
-    
-    # FLUSH BUFFER
-    # If we were buffering, dump everything into this new file handler
-    if BUFFER_HANDLER is not None:
-        BUFFER_HANDLER.setTarget(file_handler) # Point buffer to new file
-        BUFFER_HANDLER.flush()                 # Dump RAM to Disk
-        root_logger.removeHandler(BUFFER_HANDLER) # Remove buffer from root
-        BUFFER_HANDLER.close()
-        BUFFER_HANDLER = None                  # Reset global
-        print(f"Logger buffer flushed to {logfile_path}")
+        try:
+            file_handler = logging.FileHandler(logfile_path, mode='w')
+        except OSError:
+            print(f"WARNING: Cannot write log file to {logfile_path}. Logging to stderr only.")
 
-    # Attach new file handler for all future logs
-    root_logger.addHandler(file_handler)
+    if file_handler is not None:
+        file_handler.setFormatter(formatter)
+
+    # FLUSH BUFFER
+    # If we were buffering, dump everything into the file handler (or discard if no file)
+    if BUFFER_HANDLER is not None:
+        if file_handler is not None:
+            BUFFER_HANDLER.setTarget(file_handler)
+            BUFFER_HANDLER.flush()
+            print(f"Logger buffer flushed to {logfile_path}")
+        root_logger.removeHandler(BUFFER_HANDLER)
+        BUFFER_HANDLER.close()
+        BUFFER_HANDLER = None
+
+    # Attach file handler if we got one, otherwise add stderr so logs aren't lost
+    if file_handler is not None:
+        root_logger.addHandler(file_handler)
+    elif not any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers):
+        stderr_handler = logging.StreamHandler()
+        stderr_handler.setFormatter(formatter)
+        root_logger.addHandler(stderr_handler)
     return
 
 def get_current_log_path():
