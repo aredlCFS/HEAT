@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 tools = toolsClass.tools()
 
 class engineObj():
-    def __init__(self, logFile, rootDir, dataPath, OFbashrc, chmod, UID, GID, tsSigFigs=9, shotSigFigs=6):
+    def __init__(self, rootDir, dataPath, OFbashrc, chmod, UID, GID, tsSigFigs=9, shotSigFigs=6):
         #number of significant figures after radix for timesteps
         self.tsSigFigs=tsSigFigs
         self.tsFmt = "{:."+"{:d}".format(tsSigFigs)+"f}"
@@ -51,8 +51,6 @@ class engineObj():
         self.chmod = chmod
         self.GID = GID
         self.UID = UID
-        #where HEAT log is written
-        self.logFile = logFile
         #where python source code is located (dashGUI.py)
         self.rootDir = rootDir
         #where we are saving data / HEAT output
@@ -4510,7 +4508,8 @@ class engineObj():
             templateVarFile = partDir + '/system/templateVariables'
             STLpart = PFC.OFpart +".stl"
             self.OF.writeOFtemplateVarFile(templateVarFile, STLpart)
-            self.OF.writeShellScript(self.logFile)
+            
+            self.OF.writeShellScript()
 
             #create OF dictionaries from templates
             self.OF.createDictionaries(self.OF.templateDir,

@@ -15,6 +15,7 @@ import pandas as pd
 import psutil
 log = logging.getLogger(__name__)
 tools = toolsClass.tools()
+import logConfig
 
 class OpenFOAM():
     def __init__(self, rootDir, dataPath, chmod=0o774, UID=-1, GID=-1):
@@ -228,7 +229,7 @@ class OpenFOAM():
             f.write('NCPU '+str(self.NCPU)+';\n')
         return
 
-    def writeShellScript(self,logFile, parallel=False):
+    def writeShellScript(self, parallel=False):
         """
         Writes shell script that runs OF from the template file.  This file will
             write to the HEATlog.txt file for viewing in the GUI
@@ -238,6 +239,9 @@ class OpenFOAM():
             (this is buggy and sometimes fails)
 
         """
+        #get current log file path
+        logFile = logConfig.get_current_log_path()
+
         #check if we are in appImage mode to get correct bash location
         shebang = '#!/bin/bash'
 

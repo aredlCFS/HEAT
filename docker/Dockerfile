@@ -258,4 +258,8 @@ WORKDIR /root
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # start app
-CMD [ "python3", "./source/HEAT/source/launchHEAT.py", "--a", "0.0.0.0", "--p", "8050", "--m", "g" ]
+# start app — ENTRYPOINT is fixed, CMD provides defaults (overridable at runtime)
+# GUI mode: docker run plasmapotential/heat (uses defaults below)
+# TUI mode: docker run plasmapotential/heat --m t --f /path/to/batchFile.dat
+ENTRYPOINT [ "python3", "./source/HEAT/source/launchHEAT.py" ]
+CMD [ "--a", "0.0.0.0", "--p", "8050", "--m", "g" ]

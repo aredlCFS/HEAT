@@ -52,7 +52,6 @@ import logging
 log = logging.getLogger(__name__)
 
 #get relevant environment variables
-logFile = os.environ["logFile"]
 rootDir = os.environ["rootDir"]
 dataPath = os.environ["dataPath"]
 OFbashrc = os.environ["OFbashrc"]
@@ -98,7 +97,7 @@ else:
 #Eventually need to fix this so that we are not using a global variable
 #dash can acces Flask Cache so we should cache data by userID or something
 #for R&D this works
-gui = engineObj(logFile, rootDir, dataPath, OFbashrc, chmod, UID, GID)
+gui = engineObj(rootDir, dataPath, OFbashrc, chmod, UID, GID)
 gui.UImode = 'g' #graphical mode
 
 """
