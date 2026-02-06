@@ -288,7 +288,7 @@ class FEM:
 
         #for saving nodeId,HF
         name = prefix + '_' + self.tsFmt.format(t) + '.dat'
-        np.savetxt(self.elmerOutDir + name, nodeArray, fmt="% .9E", delimiter=',')
+        tools.savetxt(self.elmerOutDir + name, nodeArray, fmt="% .9E", delimiter=',')
 
         return
     
@@ -313,7 +313,7 @@ class FEM:
         hfArray = np.hstack((xyz, q[:,np.newaxis]))
         newFile = self.elmerOutDir + 'HFtmp.csv'
         head = "X,Y,Z,$MW/m^2$"
-        np.savetxt(newFile, hfArray, fmt="% .9E", delimiter=',', header=head)
+        tools.savetxt(newFile, hfArray, fmt="% .9E", delimiter=',', header=head)
 
         return newFile
 

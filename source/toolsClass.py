@@ -31,6 +31,19 @@ class tools:
         self.chmod = chmod
         return
 
+    def savetxt(self, fname, *args, **kwargs):
+        """
+        Wrapper around np.savetxt that removes existing file first.
+        Mountpoint S3 doesn't support overwriting via open('w') on existing files,
+        so we delete-then-write instead.
+        """
+        if os.path.isfile(fname):
+            try:
+                os.remove(fname)
+            except OSError:
+                pass
+        np.savetxt(fname, *args, **kwargs)
+
     def setupNumberFormats(self, tsSigFigs=6, shotSigFigs=6):
         """
         sets up pythonic string number formats for shot and timesteps

@@ -2131,7 +2131,7 @@ class PFC(shadowKernels):
             pc[:,2] = tools.targetCtrs[:,2]*1000.0
             pc[:,3] = bdotn
             head = "X,Y,Z,targetBdotN"
-            np.savetxt(pcfile, pc, delimiter=',',fmt='%.10f', header=head)
+            tools.savetxt(pcfile, pc, delimiter=',',fmt='%.10f', header=head)
             tools.createVTKOutput(pcfile, 'points', 'tgtBdotN')
 
             #Norm Glyphs

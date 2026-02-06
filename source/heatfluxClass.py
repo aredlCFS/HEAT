@@ -1710,7 +1710,7 @@ class heatFlux:
         pc[:,1] = xyz[::2,1]*1000
         pc[:,2] = xyz[::2,2]*1000
         head = """X,Y,Z"""
-        np.savetxt(file, pc, delimiter=',',fmt='%.10f', header=head)
+        tools.savetxt(file, pc, delimiter=',',fmt='%.10f', header=head)
         return
 
 
