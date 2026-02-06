@@ -65,12 +65,16 @@ def setup_logging(logfile_path=None, level=logging.INFO, format='%(message)s'):
             root_logger.removeHandler(handler)
 
     # Create the new File Handler
-    # Note: explicit use of logging.handlers.RotatingFileHandler
-    file_handler = logging.handlers.RotatingFileHandler(
-        logfile_path, 
-        maxBytes=1024*1024*5, 
-        backupCount=5
-    )
+    # Try RotatingFileHandler first (log rotation on POSIX), fall back to plain
+    # FileHandler for S3/non-POSIX filesystems that don't support append or rename
+    try:
+        file_handler = logging.handlers.RotatingFileHandler(
+            logfile_path,
+            maxBytes=1024*1024*5,
+            backupCount=5
+        )
+    except OSError:
+        file_handler = logging.FileHandler(logfile_path, mode='w')
     file_handler.setFormatter(formatter)
     
     # FLUSH BUFFER
