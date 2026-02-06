@@ -865,22 +865,34 @@ class engineObj():
                 print("New STP file.  Writing")
                 with open(newSTPpath, 'wb') as f:
                     f.write(STPdata)
-                atime = os.stat(newSTPpath).st_atime
-                os.utime(newSTPpath, (atime, ts))
+                try:
+                    atime = os.stat(newSTPpath).st_atime
+                    os.utime(newSTPpath, (atime, ts))
+                except OSError as e:
+                    print(f"Could not set file timestamps: {e}")
                 self.CAD.overWriteMask = True #we need to also overwrite meshes
-                os.chmod(newSTPpath, self.chmod)
-                os.chown(newSTPpath, self.UID, self.GID)
+                try:
+                    os.chmod(newSTPpath, self.chmod)
+                    os.chown(newSTPpath, self.UID, self.GID)
+                except OSError as e:
+                    print(f"Could not set file permissions: {e}")
             else:
                 #if file was modified, overwrite
                 if ts != os.stat(newSTPpath).st_mtime:
                     print("File was modified since last HEAT upload.  Overwriting...")
                     with open(newSTPpath, 'wb') as f:
                         f.write(STPdata)
-                    atime = os.stat(newSTPpath).st_atime
-                    os.utime(newSTPpath, (atime, ts))
+                    try:
+                        atime = os.stat(newSTPpath).st_atime
+                        os.utime(newSTPpath, (atime, ts))
+                    except OSError as e:
+                        print(f"Could not set file timestamps: {e}")
                     self.CAD.overWriteMask = True #we need to also overwrite meshes
-                    os.chmod(newSTPpath, self.chmod)
-                    os.chown(newSTPpath, self.UID, self.GID)
+                    try:
+                        os.chmod(newSTPpath, self.chmod)
+                        os.chown(newSTPpath, self.UID, self.GID)
+                    except OSError as e:
+                        print(f"Could not set file permissions: {e}")
                 #meshes are already up to date, only overwrite if user requests
                 else:
                     if self.CAD.overWriteMask in falseList:
@@ -924,7 +936,10 @@ class engineObj():
                 print("New STP file.  Writing")
                 shutil.copyfile(CADfile, newSTPpath)
                 #set modified timestamps to match original
-                os.utime(newSTPpath, (atime_orig, mtime_orig))
+                try:
+                    os.utime(newSTPpath, (atime_orig, mtime_orig))
+                except OSError as e:
+                    print(f"Could not set file timestamps: {e}")
                 self.CAD.overWriteMask = True #we need to also overwrite meshes
             else:
                 #time last modified
@@ -937,10 +952,16 @@ class engineObj():
                     shutil.copyfile(CADfile, newSTPpath)
                     print(atime_orig)
                     print(mtime_orig)
-                    os.utime(newSTPpath, (atime_orig, mtime_orig))
+                    try:
+                        os.utime(newSTPpath, (atime_orig, mtime_orig))
+                    except OSError as e:
+                        print(f"Could not set file timestamps: {e}")
                     self.CAD.overWriteMask = True #we need to also overwrite meshes
-                    os.chmod(newSTPpath, self.chmod)
-                    os.chown(newSTPpath, self.UID, self.GID)
+                    try:
+                        os.chmod(newSTPpath, self.chmod)
+                        os.chown(newSTPpath, self.UID, self.GID)
+                    except OSError as e:
+                        print(f"Could not set file permissions: {e}")
                 else:
                     falseList = [False, 'F', 'f', 'false', 'False', 'FALSE']
                     if self.CAD.overWriteMask in falseList:
@@ -3742,56 +3763,56 @@ class engineObj():
             if csvMask == True:
                 src = tPath + 'HF_optical_all.csv'
                 dest = movieDir + 'hfOptical_'+tStr+'.csv'
-                shutil.copy(src,dest)
+                shutil.copyfile(src,dest)
             if vtpMeshMask == True:
                 src = tPath + '/paraview/HF_optical_all_mesh.vtp'
                 dest = movieDir + 'hfOptical_mesh_'+tStr+'.vtp'.format(t)
-                shutil.copy(src,dest)            
+                shutil.copyfile(src,dest)
                 src = tPath + '/paraview/shadowMask_all_mesh.vtp'
                 dest = movieDir + 'shadowMask_mesh_'+tStr+'.vtp'
-                shutil.copy(src,dest)
+                shutil.copyfile(src,dest)
             if glbMeshMask == True:
                 src = tPath + '/paraview/HF_optical_all_mesh.glb'
                 dest = movieDir + 'hfOptical_mesh_'+tStr+'.glb'.format(t)
-                shutil.copy(src,dest)            
+                shutil.copyfile(src,dest)
                 src = tPath + '/paraview/shadowMask_all_mesh.glb'
                 dest = movieDir + 'shadowMask_mesh_'+tStr+'.glb'
-                shutil.copy(src,dest)
+                shutil.copyfile(src,dest)
 
         if 'shadowPC' in runList:
             src = tPath + 'shadowMask_all.csv'
             dest = movieDir + 'shadowMask_'+tStr+'.csv'.format(t)
-            shutil.copy(src,dest)
+            shutil.copyfile(src,dest)
         if 'pwrDir' in runList:
             src = tPath + 'powerDir_all.csv'
             dest = movieDir + 'powerDir_'+tStr+'.csv'.format(t)
-            shutil.copy(src,dest)
+            shutil.copyfile(src,dest)
         if 'bdotn' in runList:
             src = tPath + 'bdotn_all.csv'
             dest = movieDir + 'bdotn_'+tStr+'.csv'.format(t)
-            shutil.copy(src,dest)
+            shutil.copyfile(src,dest)
         if 'psiN' in runList:
             src = tPath + 'psiN_all.csv'
             dest = movieDir + 'psiN_'+tStr+'.csv'.format(t)
-            shutil.copy(src,dest)
+            shutil.copyfile(src,dest)
         if 'norm' in runList:
             src = tPath + 'NormGlyph_all.csv'
             dest = movieDir + 'NormGlyph_'+tStr+'.csv'.format(t)
-            shutil.copy(src,dest)
+            shutil.copyfile(src,dest)
         if 'B' in runList:
             src = tPath + 'BfieldGlyph_all.csv'
             dest = movieDir + 'BfieldGlyph_'+tStr+'.csv'.format(t)
-            shutil.copy(src,dest)
+            shutil.copyfile(src,dest)
         if 'hfGyro' in runList:
             src = tPath + 'HF_gyro_all.csv'
             dest = movieDir + 'hfGyro_'+tStr+'.csv'.format(t)
-            shutil.copy(src,dest)
+            shutil.copyfile(src,dest)
             src = tPath + 'HF_allSources_all.csv'
             dest = movieDir + 'hfAll_'+tStr+'.csv'.format(t)
-            shutil.copy(src,dest)
+            shutil.copyfile(src,dest)
             src = tPath + 'shadowMaskGyro_all.csv'
             dest = movieDir + 'shadowMaskGyro_'+tStr+'.csv'.format(t)
-            shutil.copy(src,dest)
+            shutil.copyfile(src,dest)
 
         #set tree permissions
         tools.recursivePermissions(movieDir, self.UID, self.GID, self.chmod)
@@ -4316,11 +4337,12 @@ class engineObj():
             #tools.makeDir(partDir, clobberFlag=True, mode=self.chmod, UID=self.UID, GID=self.GID)
             #copy heatFoam template directory to this location
             try:
-                shutil.copytree(self.OF.templateCase, partDir)
+                shutil.copytree(self.OF.templateCase, partDir, copy_function=shutil.copyfile)
                 if self.OF.OFtMin != 0:
                     t0 = partDir+'/0'
                     t0new = partDir+'/{:f}'.format(self.OF.OFtMin).rstrip('0').rstrip('.')
-                    os.rename(t0, t0new)
+                    shutil.copytree(t0, t0new, copy_function=shutil.copyfile)
+                    shutil.rmtree(t0)
             except OSError as e:
                 print('COULD NOT COPY TEMPLATE DIRECTORY!  Aborting!')
                 print(e)
@@ -4399,9 +4421,8 @@ class engineObj():
             PFC.OFpart = PFC.OFpart.replace(" ", "_")
             triSurfaceLocation = partDir+'/constant/triSurface/' + PFC.OFpart +".stl"
 
-            #create hard link to STL
-            os.link(stlfile,triSurfaceLocation)
-            #shutil.copy(stlfile, triSurfaceLocation)
+            #copy STL to triSurface location (copyfile for S3 compat)
+            shutil.copyfile(stlfile, triSurfaceLocation)
 
             #Test STL to make sure it is watertight (open3d)
             #meshInQuestion = o3d.io.read_triangle_mesh(stlfile)
@@ -4553,7 +4574,7 @@ class engineObj():
                         #shutil.copytree(t0new,timeDir
                         tools.makeDir(timeDir, clobberFlag=False, mode=self.chmod, UID=self.UID, GID=self.GID)
                         #shutil.copy(HFt0, HFtStep)
-                        shutil.copy(HFt0, timeDir)
+                        shutil.copyfile(HFt0, os.path.join(timeDir, os.path.basename(HFt0)))
 
                     except:
                         print("***")

@@ -1027,12 +1027,15 @@ class tools:
         log.info("Changing directory ownership recursively")
         log.info("GID: {:d}".format(GID))
         log.info("UID: {:d}".format(UID))
-        for dirpath, dirnames, filenames in os.walk(path):
-            os.chown(dirpath, UID, GID)
-            os.chmod(dirpath, chmod)
-            for filename in filenames:
-                os.chown(os.path.join(dirpath, filename), UID, GID)
-                os.chmod(os.path.join(dirpath, filename), chmod)
+        try:
+            for dirpath, dirnames, filenames in os.walk(path):
+                os.chown(dirpath, UID, GID)
+                os.chmod(dirpath, chmod)
+                for filename in filenames:
+                    os.chown(os.path.join(dirpath, filename), UID, GID)
+                    os.chmod(os.path.join(dirpath, filename), chmod)
+        except OSError as e:
+            print(f"Could not set permissions recursively: {e}")
         return
 
     def is_number(self, s):

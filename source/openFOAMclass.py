@@ -283,7 +283,10 @@ class OpenFOAM():
                 f.write('mpirun --use-hwthread-cpus -np '+str(self.NCPU)+' snappyHexMesh -parallel -overwrite | tee -a '+logFile+ '\n')
                 f.write('reconstructParMesh -mergeTol 1e-6 -latestTime -constant | tee -a '+logFile+ '\n')
 
-        os.chmod(file, self.chmod)
+        try:
+            os.chmod(file, self.chmod)
+        except OSError:
+            pass
 
         #Write thermal analysis script
         file = self.partDir + self.cmdThermal
@@ -300,7 +303,10 @@ class OpenFOAM():
             #f.write('heatFoam > '+logFile+ '\n')
             #f.write('paraFoam -touchAll\n')
             #f.write('touch '+ self.partName +'.foam\n')
-        os.chmod(file, self.chmod)
+        try:
+            os.chmod(file, self.chmod)
+        except OSError:
+            pass
 
         #Write temperature probe script
         file = self.partDir + self.cmdTprobe
@@ -311,7 +317,10 @@ class OpenFOAM():
             f.write('topoSet | tee -a '+logFile+ '\n')
             f.write('createPatch -overwrite | tee -a '+logFile+ '\n')
             f.write('postProcess -func "probes" | tee -a '+logFile+ '\n')
-        os.chmod(file, self.chmod)
+        try:
+            os.chmod(file, self.chmod)
+        except OSError:
+            pass
         return
 
 
@@ -385,7 +394,7 @@ class OpenFOAM():
 
         #Now copy this mesh to the 3D meshes folder for future use
         #tools.makeDir(newFile, clobberFlag=False, mode=self.chmod, UID=self.UID, GID=self.GID)
-        shutil.copytree(newFile, file)
+        shutil.copytree(newFile, file, copy_function=shutil.copyfile)
         #set tree permissions
         tools.recursivePermissions(self.meshDir, self.UID, self.GID, self.chmod)
 # This method left here for reference:
@@ -485,8 +494,11 @@ class OpenFOAM():
                     for line in fin:
                         fout.write(line.replace('\t',','))
             #outfile permissions
-            os.chown(outfile,self.UID,self.GID)
-            os.chmod(outfile,self.chmod)
+            try:
+                os.chown(outfile,self.UID,self.GID)
+                os.chmod(outfile,self.chmod)
+            except OSError:
+                pass
             #read data file
             data = pd.read_csv(outfile, header=1)
             data.columns = data.columns.str.strip()

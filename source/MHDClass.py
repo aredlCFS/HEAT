@@ -1511,8 +1511,11 @@ class MHD:
                 write_array(g['wall'].flatten(), f)
                 f.write(str(KVTOR) + ' ' + format(RVTOR, ' .9E') + ' ' + str(NMASS) + '\n')
                 write_array(RHOVN, f)
-        os.chown(file, self.UID, self.GID)
-        os.chmod(file, self.chmod)
+        try:
+            os.chown(file, self.UID, self.GID)
+            os.chmod(file, self.chmod)
+        except OSError:
+            pass
         return time
 
     def copyGfile2tree(self,gFileName,shot,time,clobberflag=True):
