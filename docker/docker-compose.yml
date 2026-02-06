@@ -8,7 +8,9 @@
 services:
   HEAT:
     #user: ${UID}:${GID}
-    image: "plasmapotential/heat:v4.2.5"
+    image: "plasmapotential/heat:v4.2.6"
+    # for terminal mode, overwrite the default command arguments by uncommenting the line below
+    #command: --m t --f /root/terminal/batchFile.dat
     ports:
       - "8050:8050"
     volumes:
