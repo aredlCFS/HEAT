@@ -34,302 +34,185 @@
 !> Build grid like this:  ElmerGrid 8 2 <name_of_part> -autoclean -relh 1.0
 !> run like this: ElmerSolver case.sif
 !-------------------------------------------------------------------------------
-MODULE ReXModule
+MODULE ReXCore
     USE Types
     USE DefUtils
-    USE, INTRINSIC :: ieee_arithmetic
     IMPLICIT NONE
-
-    PUBLIC :: ReXOnNodes
-    PUBLIC :: WriteReX
-
-    ! Global storage for recrystallization result
-    REAL(KIND=8), SAVE, ALLOCATABLE :: ReXArray(:)
-
-    !Interface required to pass function handle through to Elmer
-    INTERFACE
-        FUNCTION ReXOnNodes(Model, n, Temp) RESULT(ReX)
-            USE DefUtils
-            IMPLICIT NONE
-            TYPE(Model_t) :: Model
-            TYPE(Solver_t) :: Solver
-            TYPE(Variable_t), POINTER :: TimeVar
-            Character(LEN=100) :: nodalReXPrefix
-            REAL(KIND=dp) :: Temp, kB, ReX, test
-            REAL(KIND=dp) :: avrami_n, avrami_k0, avrami_E
-            REAL(KIND=dp) :: c, dt, Time
-            TYPE(ValueList_t), POINTER :: mat
-            Logical :: GotIt
-            Character(LEN=255) :: f, ff
-            REAL(KIND=dp), ALLOCATABLE :: dataIntegral(:)
-            REAL(KIND=dp), ALLOCATABLE :: dataTprev(:)
-            REAL(KIND=dp), ALLOCATABLE :: dataTimeN(:)
-            REAL(KIND=dp), ALLOCATABLE :: dataAvrami(:)
-            INTEGER :: TotalNodes, n
-            INTEGER :: numLines
-            REAL, ALLOCATABLE :: data(:,:)
-
-        END FUNCTION ReXOnNodes
-        
-        SUBROUTINE ReadCSV_ReX(filename, data, numLines)
-            CHARACTER(LEN=255) :: filename
-            REAL, ALLOCATABLE, INTENT(OUT) :: data(:,:)
-            INTEGER, INTENT(OUT) :: numLines
-            CHARACTER(LEN=200) :: line
-            CHARACTER(LEN=20), DIMENSION(2) :: splitLine
-            INTEGER, DIMENSION(2) :: splitPos
-            INTEGER :: ioStat, fileUnit, i
-            CHARACTER(len=255) :: cwd
-
-        END SUBROUTINE ReadCSV_ReX
-
-        SUBROUTINE SplitString_ReX(str, splitStr)
-            CHARACTER(LEN=*), INTENT(IN) :: str
-            CHARACTER(LEN=20), DIMENSION(2), INTENT(OUT) :: splitStr
-            INTEGER :: endPos
-
-        END SUBROUTINE SplitString_ReX
-
-		SUBROUTINE WriteReX(Model, Solver, dt)
-			USE DefUtils
-			IMPLICIT NONE
-			TYPE(Model_t), INTENT(IN) :: Model
-			TYPE(Solver_t), INTENT(IN) :: Solver
-			REAL(KIND=8), INTENT(IN) :: dt
-			LOGICAL :: GotIt
-			CHARACTER(LEN=255) :: filename_new
-			INTEGER :: i, fu
-		END SUBROUTINE
-
-    END INTERFACE
-END MODULE ReXModule
-
-! Outside any "scope" the Functions Declared 
-! in the Interface above must be implemented
+    REAL(KIND=dp), ALLOCATABLE :: CSV_Nodes(:), CSV_ReX(:)
+    REAL(KIND=dp), ALLOCATABLE :: ReXArray(:)
+    REAL(KIND=dp), ALLOCATABLE :: dataIntegral(:)
+    REAL(KIND=dp), ALLOCATABLE :: dataTprev(:)
+    REAL(KIND=dp), ALLOCATABLE :: dataTimeN(:)
+    REAL(KIND=dp), ALLOCATABLE :: dataAvrami(:)
+    INTEGER :: numLines = 0
+CONTAINS
+    SUBROUTINE ReadCSV_ReX(filename)
+        CHARACTER(LEN=*) :: filename
+        INTEGER :: ioStat, fileUnit, i
+        LOGICAL :: exists
+        INQUIRE(FILE=filename, EXIST=exists)
+        IF (.NOT. exists) THEN
+            numLines = 0
+            RETURN
+        END IF
+        OPEN(NEWUNIT=fileUnit, FILE=filename, STATUS='OLD', ACTION='READ')
+        numLines = 0
+        DO
+            READ(fileUnit, *, IOSTAT=ioStat)
+            IF (ioStat /= 0) EXIT
+            numLines = numLines + 1
+        END DO
+        IF (ALLOCATED(CSV_Nodes)) DEALLOCATE(CSV_Nodes, CSV_ReX)
+        IF (numLines > 0) ALLOCATE(CSV_Nodes(numLines), CSV_ReX(numLines))
+        REWIND(fileUnit)
+        DO i = 1, numLines
+            READ(fileUnit, *, IOSTAT=ioStat) CSV_Nodes(i), CSV_ReX(i)
+        END DO
+        CLOSE(fileUnit)
+    END SUBROUTINE ReadCSV_ReX
+    SUBROUTINE SortCSV_ReX()
+        INTEGER :: i, j, gap
+        REAL(KIND=dp) :: tmpNode, tmpReX
+        gap = numLines / 2
+        DO WHILE (gap > 0)
+            DO i = gap + 1, numLines
+                tmpNode = CSV_Nodes(i)
+                tmpReX = CSV_ReX(i)
+                j = i
+                DO WHILE (j > gap)
+                    IF (CSV_Nodes(j-gap) <= tmpNode) EXIT
+                    CSV_Nodes(j) = CSV_Nodes(j-gap)
+                    CSV_ReX(j) = CSV_ReX(j-gap)
+                    j = j - gap
+                END DO
+                CSV_Nodes(j) = tmpNode
+                CSV_ReX(j) = tmpReX
+            END DO
+            gap = gap / 2
+        END DO
+    END SUBROUTINE SortCSV_ReX
+END MODULE ReXCore
 FUNCTION ReXOnNodes(Model, n, Temp) RESULT(ReX)
     USE DefUtils
-    USE ReXModule , except_this_one => ReXOnNodes
+    USE ReXCore
     USE, INTRINSIC :: ieee_arithmetic
     IMPLICIT NONE
     TYPE(Model_t) :: Model
-    TYPE(Solver_t) :: Solver
-    TYPE(Variable_t), POINTER :: TimeVar
-    Character(LEN=100) :: nodalReXPrefix
-    REAL(KIND=dp) :: Temp, kB, ReX, test
-    REAL(KIND=dp) :: c, dt, Time
+    INTEGER :: n, i, globalNode, low, high, mid
+    REAL(KIND=dp) :: Temp, ReX, c, dt, Time, kB
     REAL(KIND=dp) :: avrami_n, avrami_k0, avrami_E
+    TYPE(Variable_t), POINTER :: TimeVar
     TYPE(ValueList_t), POINTER :: mat
-    Logical :: GotIt
-    Character(LEN=255) :: f, ff
-    REAL(KIND=dp), SAVE, ALLOCATABLE :: dataIntegral(:)
-    REAL(KIND=dp), SAVE, ALLOCATABLE :: dataTprev(:)
-    REAL(KIND=dp), SAVE, ALLOCATABLE :: dataTimeN(:)
-    REAL(KIND=dp), SAVE, ALLOCATABLE :: dataAvrami(:)
-    INTEGER :: TotalNodes, n
-    INTEGER :: numLines
-    REAL, ALLOCATABLE :: data(:,:)
-    REAL(KIND=dp), SAVE :: tRead = -1.0
-	INTEGER, SAVE :: nodeCounter = 0
-
-    !physics constants
-    kB = 8.617333e-5 ! [eV/K]
-
-    !Load the material and avrami values from SIF
+    CHARACTER(LEN=255) :: f
+    CHARACTER(LEN=100) :: nodalReXPrefix
+    LOGICAL :: GotIt
+    INTEGER :: TotalNodes
+    kB = 8.617333e-5_dp ! [eV/K]
+    TotalNodes = Model % Mesh % NumberOfNodes
     IF (.NOT. ALLOCATED(dataAvrami)) THEN
         mat => GetMaterial()
-        !get avrami exponent
-        avrami_n = getConstReal(mat, 'avrami_n', GotIt)
-        IF(.NOT. GotIt) CALL Fatal('ReXOnNodes', 'could not read avrami parameters from SIF')
-        IF ( .NOT. ASSOCIATED(mat) ) THEN
-            CALL FATAL('ReXNodes','No ReX Solver found')
-        END IF
-        !get avrami coefficient
-        avrami_k0 = getConstReal(mat, 'avrami_k0', GotIt)
-        IF(.NOT. GotIt) CALL Fatal('ReXOnNodes', 'could not read avrami parameters from SIF')
-        IF ( .NOT. ASSOCIATED(mat) ) THEN
-            CALL FATAL('ReXNodes','No ReX Solver found')
-        END IF
-        !get avrami activation energy [eV/atom]
-        avrami_E = getConstReal(mat, 'avrami_E', GotIt)
-        IF(.NOT. GotIt) CALL Fatal('ReXOnNodes', 'could not read avrami parameters from SIF')
-        IF ( .NOT. ASSOCIATED(mat) ) THEN
-            CALL FATAL('ReXNodes','No ReX Solver found')
-        END IF
-
-        !JMAK equation coefficients
+        IF (.NOT. ASSOCIATED(mat)) CALL FATAL('ReXOnNodes','No material found')
+        avrami_n  = GetConstReal(mat, 'avrami_n', GotIt)
+        IF(.NOT. GotIt) CALL Fatal('ReXOnNodes', 'avrami_n missing')
+        avrami_k0 = GetConstReal(mat, 'avrami_k0', GotIt)
+        IF(.NOT. GotIt) CALL Fatal('ReXOnNodes', 'avrami_k0 missing')
+        avrami_E  = GetConstReal(mat, 'avrami_E', GotIt)
+        IF(.NOT. GotIt) CALL Fatal('ReXOnNodes', 'avrami_E missing')
         ALLOCATE(dataAvrami(3))
         dataAvrami(1) = avrami_n
         dataAvrami(2) = avrami_k0
         dataAvrami(3) = avrami_E
-
     ELSE
-        avrami_n = dataAvrami(1)
+        avrami_n  = dataAvrami(1)
         avrami_k0 = dataAvrami(2)
-        avrami_E = dataAvrami(3)
-        
+        avrami_E  = dataAvrami(3)
     END IF
-
-    ! Allocate the ReX array
-    IF (.NOT. ALLOCATED(dataIntegral)) THEN
-        TotalNodes = Model % Mesh % NumberOfNodes
-        print *, "Number of mesh nodes allocated for ReX:", TotalNodes
-        ALLOCATE(dataIntegral(TotalNodes))
-	END IF
-
-	IF (.NOT. ALLOCATED(ReXArray)) THEN
-        TotalNodes = Model % Mesh % NumberOfNodes
-		ALLOCATE(ReXArray(TotalNodes))
-        !get ReX init file name
+    IF (.NOT. ALLOCATED(ReXArray)) THEN
+        ALLOCATE(ReXArray(TotalNodes))
+        ReXArray = 0.0_dp ! Default fallback
         mat => GetMaterial()
-        nodalReXPrefix = getString(mat, 'nodalReXprefix', GotIt)
-    	f = TRIM(nodalReXPrefix) // '.dat'
-    	IF (.NOT. GotIt) THEN
-	    	print *, "ReX init value not found, set to 0."
-         	ReXArray = 0.0
-		ELSE
-			CALL ReadCSV_ReX(f, data, numLines)
-			ReXArray(:) = data(:,2)
-		END IF    
-		    dataIntegral = 1 / avrami_k0 * (- log(1 - ReXArray))**(1 / avrami_n)
-	END IF
-
-    !Allocate the time tracker
-    IF (.NOT. ALLOCATED(dataTimeN)) THEN
-        TotalNodes = Model % Mesh % NumberOfNodes
-        print *, "Number of mesh nodes allocated for TimeN:", TotalNodes
-        ALLOCATE(dataTimeN(TotalNodes))
-        dataTimeN = 0.0
+        nodalReXPrefix = GetString(mat, 'nodalReXprefix', GotIt)
+        IF (GotIt) THEN
+            f = TRIM(nodalReXPrefix) // '.dat'
+            CALL ReadCSV_ReX(f)
+            IF (numLines > 0) THEN
+                IF (numLines > 1) CALL SortCSV_ReX()
+                DO i = 1, TotalNodes
+                    IF (ASSOCIATED(Model % Mesh % ParallelInfo % GlobalDoFs)) THEN
+                        globalNode = Model % Mesh % ParallelInfo % GlobalDoFs(i)
+                    ELSE
+                        globalNode = i
+                    END IF
+                    low = 1; high = numLines
+                    DO WHILE (low <= high)
+                        mid = (low + high) / 2
+                        IF (NINT(CSV_Nodes(mid)) == globalNode) THEN
+                            ReXArray(i) = CSV_ReX(mid)
+                            EXIT
+                        ELSE IF (NINT(CSV_Nodes(mid)) < globalNode) THEN
+                            low = mid + 1
+                        ELSE
+                            high = mid - 1
+                        END IF
+                    END DO
+                END DO
+                DEALLOCATE(CSV_Nodes, CSV_ReX)
+            ELSE
+                CALL Warn('ReXOnNodes', 'Init file ' // TRIM(f) // ' not found. Defaulting ReX to 0.0')
+            END IF
+        END IF  
+        ALLOCATE(dataIntegral(TotalNodes))
+        dataIntegral = 1.0_dp / avrami_k0 * (-log(1.0_dp - ReXArray))**(1.0_dp / avrami_n)
     END IF
-
-    ! Allocate the Tprev array
+    IF (.NOT. ALLOCATED(dataTimeN)) THEN
+        ALLOCATE(dataTimeN(TotalNodes))
+        dataTimeN = 0.0_dp
+    END IF
     IF (.NOT. ALLOCATED(dataTprev)) THEN
-        TotalNodes = Model % Mesh % NumberOfNodes
-        print *, "Number of mesh nodes allocated for Tprev:", TotalNodes
         ALLOCATE(dataTprev(TotalNodes))
         dataTprev = Temp
     END IF
-
-    !get current timestep
-    TimeVar => VariableGet( Model % Variables, "Time" )
+    TimeVar => VariableGet(Model % Variables, "Time")
     Time = TimeVar % Values(1)
-	
-    IF (dataTimeN(n) .NE. TIME) THEN
-        !get dt in hours
-        dt = GetTimestepSize() / 3600.0
-        !temperature history integral (using trapz integration for this timestep)
-        c = dt * ( exp(-avrami_E / (kB * dataTprev(n))) + exp(-avrami_E / (kB * (Temp))) ) / 2.0
-        !update integral
+    IF (dataTimeN(n) /= Time) THEN
+        dt = GetTimestepSize() / 3600.0_dp
+        c = dt * ( exp(-avrami_E / (kB * dataTprev(n))) + exp(-avrami_E / (kB * Temp)) ) / 2.0_dp
         dataIntegral(n) = dataIntegral(n) + c
-
-        !For testing, you can print data for a specific node id here
-        !IF (n .EQ. 8383) THEN
-        !    print *, "True..."
-        !    print *, ReXArray(n)
-        !    print *, dataIntegral(n)
-        !    print *, (1 - exp(-avrami_k0*c1 * (c2 * dataIntegral(n))**avrami_n ))
-        !    print *, dataTprev(n) !represents 20.0 + 273.15 at first timestep
-        !    print *, Temp 
-        !END IF
-
-        !save Temperature data for next step
         dataTprev(n) = Temp
-        !Save timestep data for next timestep
         dataTimeN(n) = Time
-
     END IF   
-
-    !JMAK equation using our effective time
-    ReXArray(n) = (1 - exp(-(avrami_k0* dataIntegral(n))**avrami_n ))
-    !These values can sometimes be huge or nan.  check it
+    ReXArray(n) = 1.0_dp - exp(-(avrami_k0 * dataIntegral(n))**avrami_n )
     IF (ieee_is_nan(ReXArray(n)) .OR. .NOT. ieee_is_finite(ReXArray(n))) THEN
-        print *, "NaN or Inf detected in ReX calc...assigning 0..."
-        ReXArray(n) = 0.0
-    END IF    
-	ReX = ReXArray(n)
-
+        ReXArray(n) = 0.0_dp
+    END IF  
+    ReX = ReXArray(n)
 END FUNCTION ReXOnNodes
-
-SUBROUTINE ReadCSV_ReX(filename, data, numLines)
-    USE ReXModule, except_this_one => ReadCSV_ReX
-    CHARACTER(LEN=255) :: filename
-    REAL, ALLOCATABLE, INTENT(OUT) :: data(:,:)
-    INTEGER, INTENT(OUT) :: numLines
-    CHARACTER(LEN=200) :: line
-    CHARACTER(LEN=20), DIMENSION(2) :: splitLine
-    INTEGER, DIMENSION(2) :: splitPos
-    INTEGER :: ioStat, fileUnit, i
-    logical :: exists
-
-    print *, "Reading ReX init CSV File..."
-
-    ! First pass: Count the number of lines
-    fileUnit = 10  ! Arbitrary choice, ensure this unit is not in use elsewhere
-    OPEN(UNIT=fileUnit, FILE=filename, ACTION='READ')
-    numLines = 0
-    DO
-        READ(fileUnit, '(A)', IOSTAT=ioStat) line
-        IF (ioStat /= 0) EXIT
-        numLines = numLines + 1
-    END DO
-    CLOSE(fileUnit)
-
-    ! Allocate the array
-    ALLOCATE(data(numLines, 2))
-
-    ! Second pass: Read the data
-    OPEN(UNIT=fileUnit, FILE=filename, ACTION='READ')
-    DO i = 1, numLines
-        READ(fileUnit, '(A)', IOSTAT=ioStat) line
-        IF (ioStat /= 0) EXIT
-        CALL SplitString_ReX(line, splitLine)
-        IF (status /= 0) THEN
-            PRINT *, 'Error: Line ', i, ' does not have the correct format.'
-            STOP
-        END IF        
-        READ(splitLine(1), *) data(i, 1)
-        READ(splitLine(2), *) data(i, 2)
-    END DO
-    CLOSE(fileUnit)
-END SUBROUTINE ReadCSV_ReX
-
-SUBROUTINE SplitString_ReX(str, splitStr)
-    CHARACTER(LEN=*), INTENT(IN) :: str
-    CHARACTER(LEN=20), DIMENSION(2), INTENT(OUT) :: splitStr
-    INTEGER :: endPos
-
-    endPos = INDEX(str, ',')
-    splitStr(1) = str(1:endPos-1)
-    splitStr(2) = str(endPos+1:)
-
-END SUBROUTINE SplitString_ReX
-
 SUBROUTINE WriteReX(Model, Solver, dt)
     USE DefUtils
-    USE ReXModule , except_this_one => WriteReX
+    USE ReXCore
     IMPLICIT NONE
     TYPE(Model_t), INTENT(IN) :: Model
     TYPE(Solver_t), INTENT(IN) :: Solver
     REAL(KIND=8), INTENT(IN) :: dt
     LOGICAL :: GotIt
-
     CHARACTER(LEN=255) :: filename_new
-    INTEGER :: i, fu
-
-    IF (.NOT. ALLOCATED(ReXArray)) THEN
-        PRINT *, "WriteReX: ReXArray not allocated -> nothing to write."
-        RETURN
+    CHARACTER(LEN=10) :: rankStr
+    INTEGER :: i, fu, globalNode
+    IF (.NOT. ALLOCATED(ReXArray)) RETURN
+    filename_new = GetString(Solver % Values, 'Filename', GotIt)
+    IF (.NOT. GotIt) CALL Fatal('WriteReX', 'Missing "Filename" in solver section of SIF.')
+    IF (ParEnv % PEs > 1) THEN
+        WRITE(rankStr, '(I0)') ParEnv % MyPE
+        filename_new = TRIM(filename_new) // '.p' // TRIM(rankStr)
     END IF
-    ! Important: For Elmer Solver, use Output File from SIF:
-	filename_new = GetString( Solver % Values, 'Filename', GotIt )
-	IF (.NOT. GotIt) THEN
-		CALL Fatal('WriteReX', 'Missing "Filename" in solver section of SIF.')
-	END IF
-    PRINT *, "WriteReX: Writing file:", filename_new
-    fu = 77
-    OPEN(fu, FILE=filename_new, STATUS="REPLACE", ACTION="WRITE")
+    OPEN(NEWUNIT=fu, FILE=filename_new, STATUS="REPLACE", ACTION="WRITE")
     DO i = 1, SIZE(ReXArray)
-        WRITE(fu,'(E15.9,",",E15.9)') REAL(i), ReXArray(i)
+        IF (ASSOCIATED(Model % Mesh % ParallelInfo % GlobalDoFs)) THEN
+            globalNode = Model % Mesh % ParallelInfo % GlobalDoFs(i)
+        ELSE
+            globalNode = i
+        END IF
+        WRITE(fu,'(I0,",",E15.9)') globalNode, ReXArray(i)
     END DO
-
     CLOSE(fu)
 END SUBROUTINE WriteReX
