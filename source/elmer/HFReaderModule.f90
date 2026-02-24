@@ -40,166 +40,117 @@
 !> Build grid like this:  ElmerGrid 8 2 <name_of_part> -autoclean -relh 1.0
 !> run like this: ElmerSolver case.sif
 !-------------------------------------------------------------------------------
-MODULE HFReaderModule
+MODULE HFReaderCore
     USE Types
     USE DefUtils
     IMPLICIT NONE
-    PUBLIC :: heatFluxOnNodes
-
-    !Interface required to pass function handle through to Elmer
-    INTERFACE
-        FUNCTION heatFluxOnNodes(Model, n, t) RESULT(hf)
-            USE DefUtils
-            IMPLICIT NONE
-            TYPE(Model_t) :: Model
-            INTEGER :: n
-            REAL(KIND=dp) :: t, hf, ts
-            Logical :: GotIt
-            TYPE(ValueList_t), POINTER :: BC
-            Character(LEN=255) :: f
-            Character(LEN=100) :: nodalPrefix
-            Character(LEN=100) :: timeString            
-            REAL, ALLOCATABLE :: data(:,:)
-            INTEGER :: numLines
-            INTEGER :: tsIdx
-
-        END FUNCTION heatFluxOnNodes
-
-        SUBROUTINE ReadCSV(filename, data, numLines)
-            CHARACTER(LEN=255) :: filename
-            REAL, ALLOCATABLE, INTENT(OUT) :: data(:,:)
-            INTEGER, INTENT(OUT) :: numLines
-            CHARACTER(LEN=200) :: line
-            CHARACTER(LEN=20), DIMENSION(2) :: splitLine
-            INTEGER, DIMENSION(2) :: splitPos
-            INTEGER :: ioStat, fileUnit, i
-            CHARACTER(len=255) :: cwd
-
-        END SUBROUTINE ReadCSV
-
-        SUBROUTINE SplitString(str, splitStr)
-            CHARACTER(LEN=*), INTENT(IN) :: str
-            CHARACTER(LEN=20), DIMENSION(2), INTENT(OUT) :: splitStr
-            INTEGER :: endPos
-
-        END SUBROUTINE SplitString
-    END INTERFACE
-END MODULE HFReaderModule
-
-
-! Outside any "scope" the Functions Declared 
-! in the Interface above must be implemented
+    REAL(KIND=dp), ALLOCATABLE :: CSV_Nodes(:), CSV_Fluxes(:)
+    INTEGER, ALLOCATABLE :: LocalMap(:)
+    INTEGER :: numLines = 0
+    REAL(KIND=dp) :: tLastRead = -1.0_dp
+    REAL(KIND=dp) :: cached_q_flow = 0.0_dp
+    LOGICAL :: FirstVisit = .TRUE.
+    LOGICAL :: MapInitialized = .FALSE.
+    CHARACTER(LEN=100) :: nodalPrefix
+CONTAINS
+    SUBROUTINE ReadCSV(filename)
+        CHARACTER(LEN=*) :: filename
+        INTEGER :: ioStat, fileUnit, i
+        LOGICAL :: exists
+        INQUIRE(FILE=filename, EXIST=exists)
+        IF (.NOT. exists) CALL Fatal('ReadCSV', 'File not found: '//TRIM(filename))
+        OPEN(NEWUNIT=fileUnit, FILE=filename, STATUS='OLD', ACTION='READ')
+        numLines = 0
+        DO
+            READ(fileUnit, *, IOSTAT=ioStat)
+            IF (ioStat /= 0) EXIT
+            numLines = numLines + 1
+        END DO
+        IF (ALLOCATED(CSV_Nodes)) DEALLOCATE(CSV_Nodes, CSV_Fluxes)
+        IF (numLines > 0) ALLOCATE(CSV_Nodes(numLines), CSV_Fluxes(numLines))
+        REWIND(fileUnit)
+        DO i = 1, numLines
+            READ(fileUnit, *, IOSTAT=ioStat) CSV_Nodes(i), CSV_Fluxes(i)
+        END DO
+        CLOSE(fileUnit)
+    END SUBROUTINE ReadCSV
+    SUBROUTINE SortCSV()
+        INTEGER :: i, j, gap
+        REAL(KIND=dp) :: tmpNode, tmpFlux
+        gap = numLines / 2
+        DO WHILE (gap > 0)
+            DO i = gap + 1, numLines
+                tmpNode = CSV_Nodes(i)
+                tmpFlux = CSV_Fluxes(i)
+                j = i
+                DO WHILE (j > gap)
+                    IF (CSV_Nodes(j-gap) <= tmpNode) EXIT
+                    CSV_Nodes(j) = CSV_Nodes(j-gap)
+                    CSV_Fluxes(j) = CSV_Fluxes(j-gap)
+                    j = j - gap
+                END DO
+                CSV_Nodes(j) = tmpNode
+                CSV_Fluxes(j) = tmpFlux
+            END DO
+            gap = gap / 2
+        END DO
+    END SUBROUTINE SortCSV
+END MODULE HFReaderCore
 FUNCTION heatFluxOnNodes(Model, n, t) RESULT(hf)
     USE DefUtils
-    USE HFReaderModule , except_this_one => heatFluxOnNodes
+    USE HFReaderCore
     IMPLICIT NONE
     TYPE(Model_t) :: Model
-    INTEGER :: n, i
-    REAL(KIND=dp) :: t, hf, q_flow
-    Logical :: GotIt
+    INTEGER :: n, i, globalNode, low, high, mid
+    REAL(KIND=dp) :: t, hf
+    LOGICAL :: GotIt
     TYPE(ValueList_t), POINTER :: BC
-    Character(LEN=255) :: f
-    Character(LEN=100) :: nodalPrefix
-    Character(LEN=100) :: timeString
-    REAL, SAVE, ALLOCATABLE :: data(:,:)
-    INTEGER, SAVE :: numLines = 0
-    REAL(KIND=dp), SAVE :: tLastRead = -1.0
-
-    !Load the boundary condition with variable for filename
+    CHARACTER(LEN=255) :: f
+    CHARACTER(LEN=100) :: timeString
     BC => GetBC()
-    nodalPrefix = getString(BC, 'nodalHFprefix', GotIt)
-    !create file name based upon time
-    write(timeString, '(F15.9)') t
-    f = TRIM(nodalPrefix) // '_' // TRIM(ADJUSTL(timeString)) // '.dat'
-    IF(.NOT. GotIt) CALL Fatal('heatFluxOnNodes', 'file: ' //  f // ' not found')
-    IF ( .NOT. ASSOCIATED(BC) ) THEN
-        CALL FATAL('heatFluxOnNodes','No boundary condition found')
+    IF (.NOT. ASSOCIATED(BC)) CALL FATAL('heatFluxOnNodes','No BC found')
+    IF (FirstVisit) THEN
+        nodalPrefix = GetString(BC, 'nodalHFprefix', GotIt)
+        IF(.NOT. GotIt) CALL Fatal('heatFluxOnNodes', 'Keyword nodalHFprefix missing')
+        cached_q_flow = GetConstReal(BC, 'q_flow', GotIt)
+        IF (.NOT. GotIt) cached_q_flow = 0.0_dp
+        FirstVisit = .FALSE.
     END IF
-
-    ! Load file once per timestep
-    IF (t .NE. tLastRead) THEN
-      CALL ReadCSV(f, data, numLines)
-      tLastRead = t
+    IF (ABS(t - tLastRead) > 1.0e-9_dp) THEN
+        WRITE(timeString, '(F15.9)') t
+        f = TRIM(nodalPrefix) // '_' // TRIM(ADJUSTL(timeString)) // '.dat'
+        CALL ReadCSV(f)
+        IF (numLines > 1) CALL SortCSV()
+        tLastRead = t
+        MapInitialized = .FALSE. 
     END IF
-
-    ! Default to 0 if not found
-    hf = 0.0
-    DO i = 1, numLines
-      IF (INT(data(i,1)) == n) THEN
-        hf = data(i,2)
-        EXIT
-      END IF
-    END DO
-
-    IF (hf < 0.0_dp) THEN
-      PRINT *, "Warning: Negative heat flux at node", n, "→ setting to 0"
-      hf = 0.0
+    IF (.NOT. MapInitialized) THEN
+        IF (ALLOCATED(LocalMap)) DEALLOCATE(LocalMap)
+        ALLOCATE(LocalMap(Model % Mesh % NumberOfNodes))
+        LocalMap = 0
+        DO i = 1, Model % Mesh % NumberOfNodes
+            IF (ASSOCIATED(Model % Mesh % ParallelInfo % GlobalDoFs)) THEN
+                globalNode = Model % Mesh % ParallelInfo % GlobalDoFs(i)
+            ELSE
+                globalNode = i
+            END IF
+            low = 1; high = numLines
+            DO WHILE (low <= high)
+                mid = (low + high) / 2
+                IF (NINT(CSV_Nodes(mid)) == globalNode) THEN
+                    LocalMap(i) = mid
+                    EXIT
+                ELSE IF (NINT(CSV_Nodes(mid)) < globalNode) THEN
+                    low = mid + 1
+                ELSE
+                    high = mid - 1
+                END IF
+            END DO
+        END DO
+        MapInitialized = .TRUE.
     END IF
-    
-    ! Read the heat flux value (q_flow) from the boundary condition
-    q_flow = getConstReal(BC, 'q_flow', GotIt)
-    IF (.NOT. GotIt) THEN
-        IF (t .NE. tLastRead) THEN
-            print *, "q_flow not found in boundary condition"
-        END IF
-         q_flow = 0.0
-    END IF    
-    
-    ! Add constant heat flux to boundary
-    hf = hf + q_flow
-    
+    hf = 0.0_dp
+    IF (LocalMap(n) > 0) hf = CSV_Fluxes(LocalMap(n))
+    IF (hf < 0.0_dp) hf = 0.0_dp
+    hf = hf + cached_q_flow
 END FUNCTION heatFluxOnNodes
-
-SUBROUTINE ReadCSV(filename, data, numLines)
-    USE HFReaderModule, except_this_one => ReadCSV
-    CHARACTER(LEN=255) :: filename
-    REAL, ALLOCATABLE, INTENT(OUT) :: data(:,:)
-    INTEGER, INTENT(OUT) :: numLines
-    CHARACTER(LEN=200) :: line
-    CHARACTER(LEN=20), DIMENSION(2) :: splitLine
-    INTEGER, DIMENSION(2) :: splitPos
-    INTEGER :: ioStat, fileUnit, i
-    logical :: exists
-
-    print *, "Reading Heat Flux CSV File..."
-
-    ! First pass: Count the number of lines
-    fileUnit = 10  ! Arbitrary choice, ensure this unit is not in use elsewhere
-    OPEN(UNIT=fileUnit, FILE=filename, ACTION='READ')
-    numLines = 0
-    DO
-        READ(fileUnit, '(A)', IOSTAT=ioStat) line
-        IF (ioStat /= 0) EXIT
-        numLines = numLines + 1
-    END DO
-    CLOSE(fileUnit)
-
-    ! Allocate the array
-    ALLOCATE(data(numLines, 2))
-
-    ! Second pass: Read the data
-    OPEN(UNIT=fileUnit, FILE=filename, ACTION='READ')
-    DO i = 1, numLines
-        READ(fileUnit, '(A)', IOSTAT=ioStat) line
-        IF (ioStat /= 0) EXIT
-        CALL SplitString(line, splitLine)
-        IF (status /= 0) THEN
-            PRINT *, 'Error: Line ', i, ' does not have the correct format.'
-            STOP
-        END IF        
-        READ(splitLine(1), *) data(i, 1)
-        READ(splitLine(2), *) data(i, 2)
-    END DO
-    CLOSE(fileUnit)
-END SUBROUTINE ReadCSV
-
-SUBROUTINE SplitString(str, splitStr)
-    CHARACTER(LEN=*), INTENT(IN) :: str
-    CHARACTER(LEN=20), DIMENSION(2), INTENT(OUT) :: splitStr
-    INTEGER :: endPos
-
-    endPos = INDEX(str, ',')
-    splitStr(1) = str(1:endPos-1)
-    splitStr(2) = str(endPos+1:)
-
-END SUBROUTINE SplitString
