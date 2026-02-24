@@ -8,15 +8,16 @@ The install page provides information on downloading the test case.
 
 Start docker container in terminal mode
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-To run HEAT in terminal mode, the user needs to launch a bash shell inside the
-docker container.  In order to ensure that the docker container maps the correct
-user id and group id into the container, the ``runDockerCompose`` script is used.
-This script assigns the user id (UID) and group id (GID) from the host machine
-into environment variables in the container, then launches the docker container.  
+To run HEAT in terminal mode, the user can either override the container command
+in docker-compose (see the main docker docs) or launch a bash shell inside the
+container and run HEAT manually.  For the shell approach, use the
+``runDockerCompose`` script so the container gets the correct user id (UID) and
+group id (GID) from the host.  The HEAT image uses an ENTRYPOINT to run HEAT by
+default, so you must override the entrypoint to get a shell::
 
-To run HEAT in terminal mode, ensure the last line of ``runDockerCompose`` reads 
-``docker-compose run HEAT /bin/bash``.  This command uses the docker-compose.yml
-and launches a bash shell inside the container.
+  docker compose run --entrypoint "" HEAT /bin/bash
+
+That uses docker-compose.yml and launches a bash shell inside the container.
 
 Mapping host directories into the container
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

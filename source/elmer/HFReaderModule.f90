@@ -39,6 +39,13 @@
 !> Compile like this:  elmerf90 -o HEATLibrary.so HFReaderModule.f90
 !> Build grid like this:  ElmerGrid 8 2 <name_of_part> -autoclean -relh 1.0
 !> run like this: ElmerSolver case.sif
+!
+!> note that on some CPU architectures, there may be some floating point
+!> discrepancies so you may need to export these env vars before
+!> running Elmer:
+!> export OPENBLAS_NUM_THREADS=1
+!> export OMP_NUM_THREADS=1
+!> export OPENBLAS_CORETYPE=Prescott
 !-------------------------------------------------------------------------------
 MODULE HFReaderCore
     USE Types

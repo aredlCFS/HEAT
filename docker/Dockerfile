@@ -3,26 +3,27 @@
 #Date: 03/20/2024
 #Description:  Dockerfile for building HEAT docker image
 #
-# This dockerfile is broken into two stages.  The first stage
-# clones all the source code repos and builds everything from
-# source inside of a container.  This is time consuming, so
-# it is made into its own stage called HEATbuilder.  HEATbuilder
-# will also be saved on dockerhub from now on, with a version 
-# tag.  Users can pull HEATbuilder to save time.
+# This dockerfile is broken into two stages.  The first stage (HEATbuilder)
+# builds OpenFOAM, swak4Foam, M3DC1, MAFOT, and heatFoam.  Order is cache-friendly:
+# HEAT is cloned only when building heatFoam, so changing HEAT_REF only rebuilds
+# that layer (clone + wmake heatFoam), not the long OpenFOAM/swak4Foam build.
+# HEATbuilder can be built once and pushed to Docker Hub; then the final image
+# can use "FROM plasmapotential/heatbuilder:<tag>" and skip stage 1 entirely.
 #
 # The second stage is the final HEAT container.  It only contains
 # the packages required to run HEAT, and none of the files used
 # to build everything from source.  
 #
-# A user can build both stages like this (command also works to only
-#   build final stage if HEATbuilder is already complete):
-#   docker build -t plasmapotential/heat .
+# Build from the repository root (parent of docker/), so COPY paths are correct:
+#   docker build -f docker/Dockerfile -t plasmapotential/heat .
+# With a specific HEAT branch/tag for the image:
+#   docker build -f docker/Dockerfile --build-arg HEAT_REF=v4.2.6 -t plasmapotential/heat:v4.2.6 .
 #
-# note:  cross platform build (for apple silicon)
-#   docker buildx build --platform linux/amd64,linux/arm64 -t plasmapotential/heat -f ./Dockerfile . --push
+# Cross platform build (e.g. apple silicon):
+#   docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile -t plasmapotential/heat . --push
 #
-# User can also only build the first stage (HEATbuilder) like this:
-#   docker build --target HEATbuilder -t plasmapotential/heatbuilder .
+# Build first stage only (HEATbuilder):
+#   docker build -f docker/Dockerfile --target HEATbuilder -t plasmapotential/heatbuilder .
 #
 # after creating an image, tag it using a command like this
 #   docker tag plasmapotential/heat:latest plasmapotential/heat:<tag>
@@ -79,23 +80,19 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libunwind.so /usr/lib/x86_64-linux-gnu/libun
 #clone EFIT
 #RUN git clone https://github.com/ORNL-Fusion/EFIT.git /root/source/EFIT
 
-#clone HEAT
-RUN git clone -b v4.3 --single-branch https://github.com/plasmapotential/HEAT.git /root/source/HEAT
-
-#change to root (home) dir
 WORKDIR /root
 
-#clone and build M3DC1 fusion-io libs
+#clone and build M3DC1 fusion-io libs (buildM3DC1 uses make -k; doc/latex errors are harmless)
 RUN git clone https://github.com/nferraro/fusion-io.git /root/source/M3DC1/fusion-io
-COPY buildM3DC1 /root/source/M3DC1/fusion-io/buildM3DC1
-COPY make.inc.ubuntu_x86 /root/source/M3DC1/fusion-io/install/make.inc.ubuntu_x86
+COPY docker/buildM3DC1 /root/source/M3DC1/fusion-io/buildM3DC1
+COPY docker/make.inc.ubuntu_x86 /root/source/M3DC1/fusion-io/install/make.inc.ubuntu_x86
 RUN mkdir -p /root/source/M3DC1/build && /root/source/M3DC1/fusion-io/buildM3DC1
 
 #clone and build MAFOT
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu/hdf5/openmpi
 #note branch here can be changed 
 RUN git clone -b master --single-branch https://github.com/ORNL-Fusion/MAFOT.git /root/source/MAFOT
-COPY buildMAFOT /root/source/MAFOT/buildMAFOT
+COPY docker/buildMAFOT /root/source/MAFOT/buildMAFOT
 RUN mkdir -p /root/source/MAFOT/build/bin && \
     mkdir -p /root/source/MAFOT/build/lib && \
     /root/source/MAFOT/buildMAFOT
@@ -111,13 +108,18 @@ RUN apt-get -yqq update && \
     tar -xzf /root/source/openfoam/OpenFOAM-v${OFversion}.tgz -C /root/source/openfoam/ && \
     mkdir -p /root/source/openfoam/swak4Foam
 
-#build openfoam
+#build openfoam (without heatFoam first so this layer does not depend on HEAT_REF and stays cached)
 ENV WM_THIRD_PARTY_DIR /root/source/openfoam/ThirdParty-v${OFversion}
 WORKDIR /root/source/openfoam/OpenFOAM-v${OFversion}
-RUN mkdir -p /root/source/openfoam/OpenFOAM-v${OFversion}/applications/solvers/custom && \
+RUN mkdir -p applications/solvers/custom && \
+    source /root/source/openfoam/OpenFOAM-v${OFversion}/etc/bashrc && \
+    ./Allwmake -j -s -q -l
+
+# clone HEAT and build only heatFoam (this is the only layer that depends on HEAT_REF; OpenFOAM already built above)
+ARG HEAT_REF=v4.3
+RUN git clone -b ${HEAT_REF} --single-branch https://github.com/plasmapotential/HEAT.git /root/source/HEAT && \
     cp -au /root/source/HEAT/source/heatFoam /root/source/openfoam/OpenFOAM-v${OFversion}/applications/solvers/custom/heatFoam && \
     source /root/source/openfoam/OpenFOAM-v${OFversion}/etc/bashrc && \
-    ./Allwmake -j -s -q -l && \
     cd /root/source/openfoam/OpenFOAM-v${OFversion}/applications/solvers/custom/heatFoam && \
     wmake
 
@@ -187,8 +189,9 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libunwind.so /usr/lib/x86_64-linux-gnu/libun
 #clone EFIT (note branch can be changed)
 RUN git clone -b master --single-branch https://github.com/ORNL-Fusion/EFIT.git /root/source/EFIT
 
-#clone HEAT (note branch can be changed)
-RUN git clone -b v4.3 --single-branch https://github.com/plasmapotential/HEAT.git /root/source/HEAT
+#clone HEAT (branch or tag; set via: docker build --build-arg HEAT_REF=v4.2.6 ...)
+ARG HEAT_REF=v4.3
+RUN git clone -b ${HEAT_REF} --single-branch https://github.com/plasmapotential/HEAT.git /root/source/HEAT
 WORKDIR /root/source/HEAT
 RUN     git lfs install && git lfs pull
 WORKDIR /root
@@ -258,4 +261,8 @@ WORKDIR /root
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # start app
-CMD [ "python3", "./source/HEAT/source/launchHEAT.py", "--a", "0.0.0.0", "--p", "8050", "--m", "g" ]
+# start app — ENTRYPOINT is fixed, CMD provides defaults (overridable at runtime)
+# GUI mode: docker run plasmapotential/heat (uses defaults below)
+# TUI mode: docker run plasmapotential/heat --m t --f /path/to/batchFile.dat
+ENTRYPOINT [ "python3", "./source/HEAT/source/launchHEAT.py" ]
+CMD [ "--a", "0.0.0.0", "--p", "8050", "--m", "g" ]

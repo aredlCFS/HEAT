@@ -282,7 +282,7 @@ class IO_HEAT:
         pc[:,2] = centers[:,2]*1000.0
         pc[:,3] = Scalar
         head = "X,Y,Z,"+label
-        np.savetxt(pcfile, pc, delimiter=',',fmt='%.10f', header=head)
+        tools.savetxt(pcfile, pc, delimiter=',',fmt='%.10f', header=head)
         return
 
     def writeGlyphCSV(self,centers,vecs,path,prefix,head,tag=None):
@@ -306,7 +306,7 @@ class IO_HEAT:
         data[:,3] = vecs[:,0]
         data[:,4] = vecs[:,1]
         data[:,5] = vecs[:,2]
-        np.savetxt(pcfile, data, delimiter=',',fmt='%.10f', header=head)
+        tools.savetxt(pcfile, data, delimiter=',',fmt='%.10f', header=head)
         return
 
     def readJSON(self, filename):
