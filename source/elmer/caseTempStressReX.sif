@@ -51,9 +51,15 @@ Solver 1
   Nonlinear System Max Iterations = 10
   Nonlinear System Newton After Iterations = 3
   Nonlinear System Newton After Tolerance = 1.0e-3
-  Nonlinear System Relaxation Factor = 1
-  Linear System Solver = Direct
-  Linear System Direct Method = MUMPS
+  Nonlinear System Relaxation Factor = 1.0 
+  Linear System Solver = Iterative
+  Linear System Iterative Method = BiCGStabl
+  BiCGstabl polynomial degree = 4
+  Linear System Preconditioning = ILU1
+  Linear System Max Iterations = 500
+  Linear System Convergence Tolerance = 1.0e-8
+  Linear System Abort Not Converged = False
+  Linear System Residual Output = 20
 End
 
 
@@ -71,29 +77,34 @@ End
 
 Solver 4
   Equation = Linear elasticity
-  Calculate Stresses = True
   Procedure = "StressSolve" "StressSolver"
   Variable = "Displacement"
   Variable DOFs = 3
-  Exec Solver = Always
+  Calculate Stresses = True     
+  Exec Solver = Always           
   Stabilize = True
   Bubbles = False
   Lumped Mass Matrix = False
   Optimize Bandwidth = True
+  Linear System Solver = Iterative
+  Linear System Iterative Method = BiCGStab  
+  Linear System Max Iterations = 1000
+  Linear System Convergence Tolerance = 1.0e-8
+  Linear System Preconditioning = ILU1       
+  Linear System Residual Output = 20
+  Linear System Symmetric = True            
   Steady State Convergence Tolerance = 1.0e-3
-  Nonlinear System Convergence Tolerance = 1.0e-3
   Nonlinear System Max Iterations = 1
+  Nonlinear System Convergence Tolerance = 1.0e-3
   Nonlinear System Newton After Iterations = 3
   Nonlinear System Newton After Tolerance = 1.0e-3
   Nonlinear System Relaxation Factor = 1
-  Linear System Solver = Direct
-  Linear System Direct Method = MUMPS
 End
 
 Solver 5
     Exec Solver = After Simulation
     Procedure = "HEATLibrary" "WriteReX"
-    Filename = "ReX_results.dat"
+    Filename = "rex_results.dat"
 End
 
 Equation 1
@@ -306,6 +317,7 @@ Boundary Condition 1
   Name = "HFreader"
   Heat Flux = Variable Time
     Real Procedure "HEATLibrary" "heatfluxonnodes"
+  q_flow = Real 0.0
   nodalHFprefix = String nodehf
 End
 
