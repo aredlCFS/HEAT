@@ -87,7 +87,7 @@ RUN git clone -b ${HEAT_REF} --single-branch https://github.com/plasmapotential/
 #change to root (home) dir
 WORKDIR /root
 
-#clone and build M3DC1 fusion-io libs
+#clone and build M3DC1 fusion-io libs (buildM3DC1 uses make -k; doc/latex errors are harmless)
 RUN git clone https://github.com/nferraro/fusion-io.git /root/source/M3DC1/fusion-io
 COPY docker/buildM3DC1 /root/source/M3DC1/fusion-io/buildM3DC1
 COPY docker/make.inc.ubuntu_x86 /root/source/M3DC1/fusion-io/install/make.inc.ubuntu_x86
