@@ -7,7 +7,7 @@ Use this script to cut a new HEAT release (Docker image tag) with less manual ed
 **What it does:**
 
 1. Updates the Docker image tag in one place so you don’t edit multiple files by hand:
-   - `.github/workflows/ci.yml` (env `HEAT_IMAGE_TAG`)
+   - `.github/workflows/integration-tests.yml` (env `HEAT_IMAGE_TAG`)
    - `docker/docker-compose.yml`
    - `docker/docker-compose_local.yml`
    - `docker/docker-compose_tokens.yml`

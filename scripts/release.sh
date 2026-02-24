@@ -32,8 +32,8 @@ echo "  IMAGE_TAG (Docker): $IMAGE_TAG"
 echo "  HEAT_REF (git clone in Dockerfile): $HEAT_REF"
 echo ""
 
-# 1) Update CI workflow (single env var at top)
-CI_FILE=".github/workflows/ci.yml"
+# 1) Update integration-tests workflow (single env var at top)
+CI_FILE=".github/workflows/integration-tests.yml"
 if [ -f "$CI_FILE" ]; then
   if grep -q "HEAT_IMAGE_TAG:" "$CI_FILE"; then
     if sed --version 2>/dev/null | grep -q GNU; then
