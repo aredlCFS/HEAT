@@ -16,13 +16,13 @@ import toolsClass
 tools = toolsClass.tools()
 import logging
 log = logging.getLogger(__name__)
+import logConfig
 import multiprocessing
 import time
 
 
 #get relevant environment variables.  Needed for containers
 try:
-    logFile = os.environ["logFile"]
     rootDir = os.environ["rootDir"]
     dataPath = os.environ["dataPath"]
     OFbashrc = os.environ["OFbashrc"]
@@ -57,7 +57,7 @@ class TUI():
         """
         intialize terminal user interface (TUI) object
         """
-        self.ENG = engineClass.engineObj(logFile, rootDir, dataPath, OFbashrc, chmod, UID, GID)
+        self.ENG = engineClass.engineObj(rootDir, dataPath, OFbashrc, chmod, UID, GID)
         self.ENG.NCPUs = multiprocessing.cpu_count() - 2 #reserve 2 cores for overhead
         self.chmod = chmod
         self.GID = GID
@@ -355,14 +355,10 @@ class TUI():
         #make tree branch for this shot
         tools.makeDir(self.shotPath, clobberFlag=False, mode=self.chmod, UID=self.UID, GID=self.GID)
 
-        #make unique logfile for this tag
+        #make unique logfile for this tag and flush the log cache to this file
         logFile = self.shotPath + 'HEATlog.txt'
         self.ENG.logFile = logFile
-        from logConfig import setup_logging
-        log.info("Changing log file to new path for batchMode:")
-        log.info(logFile)
-        setup_logging(logfile_path=logFile)
-
+        logConfig.setup_logging(logfile_path=logFile)
         return
 
     def loadFilaments(self, runList, path):

@@ -1041,7 +1041,7 @@ class RAD:
         saves power fracs into a file
         """
         f =PFC.controlfilePath + 'radFracs_' + PFC.name + '.csv'
-        np.savetxt(f, PFC.radPowerFracs, delimiter=',',fmt='%.10f')
+        tools.savetxt(f, PFC.radPowerFracs, delimiter=',',fmt='%.10f')
         return
 
     def write_Prad_pointcloud(self,centers,Prad,dataPath,tag=None):
@@ -1058,7 +1058,7 @@ class RAD:
         pc[:,2] = centers[:,2]*1000.0
         pc[:,3] = Prad
         head = "X,Y,Z,Prad"
-        np.savetxt(pcfile, pc, delimiter=',',fmt='%.10f', header=head)
+        tools.savetxt(pcfile, pc, delimiter=',',fmt='%.10f', header=head)
 
         #Now save a vtk file for paraviewweb
         if tag is None:
