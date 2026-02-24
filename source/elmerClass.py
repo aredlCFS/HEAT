@@ -80,7 +80,8 @@ class FEM:
                              'meshFEMmaxRes',
                              'elmerDir',
                              'elmerFile',
-                             'elmerHEATlib'
+                             'elmerHEATlib',
+                             'numberpartitions'
                              ]
         return
 
@@ -89,7 +90,7 @@ class FEM:
         Set variable types for the stuff that isnt a string from the input file
 
         """
-        integers = [
+        integers = ['numberpartitions'
                     ]
         floats = [
             'meshFEMminRes',
