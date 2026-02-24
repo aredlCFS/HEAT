@@ -3,12 +3,12 @@
 #Date: 03/20/2024
 #Description:  Dockerfile for building HEAT docker image
 #
-# This dockerfile is broken into two stages.  The first stage
-# clones all the source code repos and builds everything from
-# source inside of a container.  This is time consuming, so
-# it is made into its own stage called HEATbuilder.  HEATbuilder
-# will also be saved on dockerhub from now on, with a version 
-# tag.  Users can pull HEATbuilder to save time.
+# This dockerfile is broken into two stages.  The first stage (HEATbuilder)
+# builds OpenFOAM, swak4Foam, M3DC1, MAFOT, and heatFoam.  Order is cache-friendly:
+# HEAT is cloned only when building heatFoam, so changing HEAT_REF only rebuilds
+# that layer (clone + wmake heatFoam), not the long OpenFOAM/swak4Foam build.
+# HEATbuilder can be built once and pushed to Docker Hub; then the final image
+# can use "FROM plasmapotential/heatbuilder:<tag>" and skip stage 1 entirely.
 #
 # The second stage is the final HEAT container.  It only contains
 # the packages required to run HEAT, and none of the files used
@@ -80,11 +80,6 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libunwind.so /usr/lib/x86_64-linux-gnu/libun
 #clone EFIT
 #RUN git clone https://github.com/ORNL-Fusion/EFIT.git /root/source/EFIT
 
-#clone HEAT (branch or tag; set via: docker build --build-arg HEAT_REF=v4.2.6 ...)
-ARG HEAT_REF=v4.3
-RUN git clone -b ${HEAT_REF} --single-branch https://github.com/plasmapotential/HEAT.git /root/source/HEAT
-
-#change to root (home) dir
 WORKDIR /root
 
 #clone and build M3DC1 fusion-io libs (buildM3DC1 uses make -k; doc/latex errors are harmless)
@@ -113,13 +108,18 @@ RUN apt-get -yqq update && \
     tar -xzf /root/source/openfoam/OpenFOAM-v${OFversion}.tgz -C /root/source/openfoam/ && \
     mkdir -p /root/source/openfoam/swak4Foam
 
-#build openfoam
+#build openfoam (without heatFoam first so this layer does not depend on HEAT_REF and stays cached)
 ENV WM_THIRD_PARTY_DIR /root/source/openfoam/ThirdParty-v${OFversion}
 WORKDIR /root/source/openfoam/OpenFOAM-v${OFversion}
-RUN mkdir -p /root/source/openfoam/OpenFOAM-v${OFversion}/applications/solvers/custom && \
+RUN mkdir -p applications/solvers/custom && \
+    source /root/source/openfoam/OpenFOAM-v${OFversion}/etc/bashrc && \
+    ./Allwmake -j -s -q -l
+
+# clone HEAT and build only heatFoam (this is the only layer that depends on HEAT_REF; OpenFOAM already built above)
+ARG HEAT_REF=v4.3
+RUN git clone -b ${HEAT_REF} --single-branch https://github.com/plasmapotential/HEAT.git /root/source/HEAT && \
     cp -au /root/source/HEAT/source/heatFoam /root/source/openfoam/OpenFOAM-v${OFversion}/applications/solvers/custom/heatFoam && \
     source /root/source/openfoam/OpenFOAM-v${OFversion}/etc/bashrc && \
-    ./Allwmake -j -s -q -l && \
     cd /root/source/openfoam/OpenFOAM-v${OFversion}/applications/solvers/custom/heatFoam && \
     wmake
 
