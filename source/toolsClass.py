@@ -1011,17 +1011,20 @@ class tools:
                     os.makedirs(path, mode=self.chmod)
                     print("Directory " , path ,  " clobbered and created ")
                 except OSError as e:
-                    print ("Error: %s - %s." % (e.filename, e.strerror))
+                    msg = "Warning: could not clobber/create directory %s - %s" % (e.filename, e.strerror)
+                    print(msg)
+                    log.warning(msg)
 
-        #change permissions
+        #change permissions (no-op on non-POSIX e.g. S3)
         if mode != None:
             try:
                 os.chmod(path, mode)
             except OSError as e:
-                print("Could not change directory permissions")
-                print ("Error: %s - %s." % (e.filename, e.strerror))
+                msg = "Warning: could not set directory permissions %s - %s" % (e.filename, e.strerror)
+                print(msg)
+                log.warning(msg)
 
-        #change ownership
+        #change ownership (no-op on non-POSIX e.g. S3)
         if GID == None:
             GID = -1
         if UID == None:
@@ -1029,8 +1032,9 @@ class tools:
         try:
             os.chown(path, UID, GID)
         except OSError as e:
-            print("Could not change directory ownership")
-            print ("Error: %s - %s." % (e.filename, e.strerror))
+            msg = "Warning: could not set directory ownership %s - %s" % (e.filename, e.strerror)
+            print(msg)
+            log.warning(msg)
 
         return
 
@@ -1059,7 +1063,9 @@ class tools:
                     os.chown(os.path.join(dirpath, filename), UID, GID)
                     os.chmod(os.path.join(dirpath, filename), chmod)
         except OSError as e:
-            print(f"Could not set permissions recursively: {e}")
+            msg = "Warning: could not set permissions recursively: %s" % e
+            print(msg)
+            log.warning(msg)
         return
 
     def is_number(self, s):
