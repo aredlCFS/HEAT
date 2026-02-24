@@ -79,8 +79,9 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libunwind.so /usr/lib/x86_64-linux-gnu/libun
 #clone EFIT
 #RUN git clone https://github.com/ORNL-Fusion/EFIT.git /root/source/EFIT
 
-#clone HEAT
-RUN git clone -b v4.3 --single-branch https://github.com/plasmapotential/HEAT.git /root/source/HEAT
+#clone HEAT (branch or tag; set via: docker build --build-arg HEAT_REF=v4.2.6 ...)
+ARG HEAT_REF=v4.3
+RUN git clone -b ${HEAT_REF} --single-branch https://github.com/plasmapotential/HEAT.git /root/source/HEAT
 
 #change to root (home) dir
 WORKDIR /root
@@ -187,8 +188,9 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libunwind.so /usr/lib/x86_64-linux-gnu/libun
 #clone EFIT (note branch can be changed)
 RUN git clone -b master --single-branch https://github.com/ORNL-Fusion/EFIT.git /root/source/EFIT
 
-#clone HEAT (note branch can be changed)
-RUN git clone -b v4.3 --single-branch https://github.com/plasmapotential/HEAT.git /root/source/HEAT
+#clone HEAT (branch or tag; set via: docker build --build-arg HEAT_REF=v4.2.6 ...)
+ARG HEAT_REF=v4.3
+RUN git clone -b ${HEAT_REF} --single-branch https://github.com/plasmapotential/HEAT.git /root/source/HEAT
 WORKDIR /root/source/HEAT
 RUN     git lfs install && git lfs pull
 WORKDIR /root
