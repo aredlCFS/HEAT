@@ -65,7 +65,7 @@ done
 
 echo ""
 echo "=== Next steps ==="
-echo "1. Build the Docker image (from repo root, with HEAT_REF=$HEAT_REF):"
+echo "1. Build the Docker image (must run from repo root; context is ., Dockerfile uses docker/ for COPYs):"
 echo ""
 echo "   docker build --build-arg HEAT_REF=$HEAT_REF -t plasmapotential/heat:$IMAGE_TAG -f docker/Dockerfile ."
 echo ""

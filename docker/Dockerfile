@@ -14,15 +14,16 @@
 # the packages required to run HEAT, and none of the files used
 # to build everything from source.  
 #
-# A user can build both stages like this (command also works to only
-#   build final stage if HEATbuilder is already complete):
-#   docker build -t plasmapotential/heat .
+# Build from the repository root (parent of docker/), so COPY paths are correct:
+#   docker build -f docker/Dockerfile -t plasmapotential/heat .
+# With a specific HEAT branch/tag for the image:
+#   docker build -f docker/Dockerfile --build-arg HEAT_REF=v4.2.6 -t plasmapotential/heat:v4.2.6 .
 #
-# note:  cross platform build (for apple silicon)
-#   docker buildx build --platform linux/amd64,linux/arm64 -t plasmapotential/heat -f ./Dockerfile . --push
+# Cross platform build (e.g. apple silicon):
+#   docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile -t plasmapotential/heat . --push
 #
-# User can also only build the first stage (HEATbuilder) like this:
-#   docker build --target HEATbuilder -t plasmapotential/heatbuilder .
+# Build first stage only (HEATbuilder):
+#   docker build -f docker/Dockerfile --target HEATbuilder -t plasmapotential/heatbuilder .
 #
 # after creating an image, tag it using a command like this
 #   docker tag plasmapotential/heat:latest plasmapotential/heat:<tag>
@@ -88,15 +89,15 @@ WORKDIR /root
 
 #clone and build M3DC1 fusion-io libs
 RUN git clone https://github.com/nferraro/fusion-io.git /root/source/M3DC1/fusion-io
-COPY buildM3DC1 /root/source/M3DC1/fusion-io/buildM3DC1
-COPY make.inc.ubuntu_x86 /root/source/M3DC1/fusion-io/install/make.inc.ubuntu_x86
+COPY docker/buildM3DC1 /root/source/M3DC1/fusion-io/buildM3DC1
+COPY docker/make.inc.ubuntu_x86 /root/source/M3DC1/fusion-io/install/make.inc.ubuntu_x86
 RUN mkdir -p /root/source/M3DC1/build && /root/source/M3DC1/fusion-io/buildM3DC1
 
 #clone and build MAFOT
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu/hdf5/openmpi
 #note branch here can be changed 
 RUN git clone -b master --single-branch https://github.com/ORNL-Fusion/MAFOT.git /root/source/MAFOT
-COPY buildMAFOT /root/source/MAFOT/buildMAFOT
+COPY docker/buildMAFOT /root/source/MAFOT/buildMAFOT
 RUN mkdir -p /root/source/MAFOT/build/bin && \
     mkdir -p /root/source/MAFOT/build/lib && \
     /root/source/MAFOT/buildMAFOT

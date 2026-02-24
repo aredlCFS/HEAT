@@ -50,4 +50,4 @@ services:
 # Interactive shell (override entrypoint so we get bash, not launchHEAT.py):
 #   docker compose run --entrypoint "" HEAT /bin/bash
 # From inside a shell you can still run: python3 ./source/HEAT/source/launchHEAT.py --m t --f /root/terminal/batchFile.dat
-# To change image tag: docker tag plasmapotential/heat:latest plasmapotential/heat:<tag>
+# To change image tag: docker tag plasmapotential/heat:v4.2.6
