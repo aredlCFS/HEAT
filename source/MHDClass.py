@@ -491,7 +491,7 @@ class MHD:
             pc[:,2] = centers[:,2]*1000.0
             pc[:,3] = arrays[i]
             head = "X,Y,Z,"+prefix
-            np.savetxt(pcfile, pc, delimiter=',',fmt='%.10f', header=head)
+            tools.savetxt(pcfile, pc, delimiter=',',fmt='%.10f', header=head)
 
             #Now save a vtk file for paraviewweb
             if tag is None:
@@ -617,7 +617,7 @@ class MHD:
         phi = np.degrees(phi)
         #Save R,phi,Z into a special initial condition grid file for MAFOT
         array = np.column_stack((R,phi,Z))
-        np.savetxt(gridfile, array, delimiter='\t',fmt='%.10f')
+        tools.savetxt(gridfile, array, delimiter='\t',fmt='%.10f')
         return
 
 
@@ -716,7 +716,7 @@ class MHD:
 
             d = self.distance(xyz)
             xyzd = np.hstack((xyz, d.reshape(-1,1)))
-            np.savetxt(outfile, xyzd, delimiter=',', header=head)
+            tools.savetxt(outfile, xyzd, delimiter=',', header=head)
             
             #Now save a vtk file for paraviewweb
             #old method (new method happens in engineClass using ioClass)
@@ -1511,8 +1511,11 @@ class MHD:
                 write_array(g['wall'].flatten(), f)
                 f.write(str(KVTOR) + ' ' + format(RVTOR, ' .9E') + ' ' + str(NMASS) + '\n')
                 write_array(RHOVN, f)
-        os.chown(file, self.UID, self.GID)
-        os.chmod(file, self.chmod)
+        try:
+            os.chown(file, self.UID, self.GID)
+            os.chmod(file, self.chmod)
+        except OSError:
+            pass
         return time
 
     def copyGfile2tree(self,gFileName,shot,time,clobberflag=True):

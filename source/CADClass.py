@@ -723,8 +723,11 @@ class CAD:
                 print("Writing mesh file: " + filename)
                 log.info("Writing mesh file: " + filename)
                 mesh[i].write(filename)
-                os.chmod(filename, self.chmod)
-                os.chown(filename, self.UID, self.GID)
+                try:
+                    os.chmod(filename, self.chmod)
+                    os.chown(filename, self.UID, self.GID)
+                except OSError:
+                    pass
 
         print("\nWrote meshes to files")
         log.info("\nWrote meshes to files")

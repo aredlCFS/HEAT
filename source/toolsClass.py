@@ -31,6 +31,30 @@ class tools:
         self.chmod = chmod
         return
 
+    def savetxt(self, fname, *args, **kwargs):
+        """
+        Wrapper around np.savetxt that opens the file handle ourselves.
+        Modern numpy uses temp file + os.replace() internally when given a
+        filename string, which fails on S3 (rename not supported).
+        Passing a file handle bypasses that entirely.
+        """
+        with open(fname, 'w') as fh:
+            np.savetxt(fh, *args, **kwargs)
+
+    def copytree(self, src, dst):
+        """
+        S3-compatible copytree. shutil.copytree calls copystat on directories
+        which fails on S3 (chmod/utime not supported). This just copies files.
+        """
+        os.makedirs(dst, exist_ok=True)
+        for item in os.listdir(src):
+            s = os.path.join(src, item)
+            d = os.path.join(dst, item)
+            if os.path.isdir(s):
+                self.copytree(s, d)
+            else:
+                shutil.copyfile(s, d)
+
     def setupNumberFormats(self, tsSigFigs=6, shotSigFigs=6):
         """
         sets up pythonic string number formats for shot and timesteps
@@ -987,17 +1011,20 @@ class tools:
                     os.makedirs(path, mode=self.chmod)
                     print("Directory " , path ,  " clobbered and created ")
                 except OSError as e:
-                    print ("Error: %s - %s." % (e.filename, e.strerror))
+                    msg = "Warning: could not clobber/create directory %s - %s" % (e.filename, e.strerror)
+                    print(msg)
+                    log.warning(msg)
 
-        #change permissions
+        #change permissions (no-op on non-POSIX e.g. S3)
         if mode != None:
             try:
                 os.chmod(path, mode)
             except OSError as e:
-                print("Could not change directory permissions")
-                print ("Error: %s - %s." % (e.filename, e.strerror))
+                msg = "Warning: could not set directory permissions %s - %s" % (e.filename, e.strerror)
+                print(msg)
+                log.warning(msg)
 
-        #change ownership
+        #change ownership (no-op on non-POSIX e.g. S3)
         if GID == None:
             GID = -1
         if UID == None:
@@ -1005,8 +1032,9 @@ class tools:
         try:
             os.chown(path, UID, GID)
         except OSError as e:
-            print("Could not change directory ownership")
-            print ("Error: %s - %s." % (e.filename, e.strerror))
+            msg = "Warning: could not set directory ownership %s - %s" % (e.filename, e.strerror)
+            print(msg)
+            log.warning(msg)
 
         return
 
@@ -1027,12 +1055,17 @@ class tools:
         log.info("Changing directory ownership recursively")
         log.info("GID: {:d}".format(GID))
         log.info("UID: {:d}".format(UID))
-        for dirpath, dirnames, filenames in os.walk(path):
-            os.chown(dirpath, UID, GID)
-            os.chmod(dirpath, chmod)
-            for filename in filenames:
-                os.chown(os.path.join(dirpath, filename), UID, GID)
-                os.chmod(os.path.join(dirpath, filename), chmod)
+        try:
+            for dirpath, dirnames, filenames in os.walk(path):
+                os.chown(dirpath, UID, GID)
+                os.chmod(dirpath, chmod)
+                for filename in filenames:
+                    os.chown(os.path.join(dirpath, filename), UID, GID)
+                    os.chmod(os.path.join(dirpath, filename), chmod)
+        except OSError as e:
+            msg = "Warning: could not set permissions recursively: %s" % e
+            print(msg)
+            log.warning(msg)
         return
 
     def is_number(self, s):

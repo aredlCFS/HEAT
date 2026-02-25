@@ -8,6 +8,7 @@ import heatfluxClass
 import ioClass
 import os
 import sys
+import shutil
 import time
 import cProfile, pstats
 import pandas as pd
@@ -198,7 +199,8 @@ class shadowKernels:
                 MHD.writeMAFOTpointfile(centers[use[fwdUse]],gridfileStruct)
                 MHD.getMultipleFieldPaths(dphi, gridfileStruct, controlfilePath, controlfileStruct)
                 structData = tools.readStructOutput(structOutfile)
-                os.rename(structOutfile,structOutfile + '_fwdUse_step1')
+                shutil.copyfile(structOutfile, structOutfile + '_fwdUse_step1')
+                os.remove(structOutfile)
                 q1 = structData[0::2,:] #even indexes are first trace point
                 q2 = structData[1::2,:] #odd indexes are second trace point
                 #build render engine scene and calculate intersections
@@ -226,7 +228,8 @@ class shadowKernels:
                 MHD.writeMAFOTpointfile(centers[use[revUse]],gridfileStruct)
                 MHD.getMultipleFieldPaths(dphi, gridfileStruct, controlfilePath, controlfileStruct)
                 structData = tools.readStructOutput(structOutfile)
-                os.rename(structOutfile,structOutfile + '_revUse_step1')
+                shutil.copyfile(structOutfile, structOutfile + '_revUse_step1')
+                os.remove(structOutfile)
                 q1 = structData[1::2,:] #odd indexes are first trace point
                 q2 = structData[0::2,:] #even indexes are second trace point
                 #build render engine scene and calculate intersections
@@ -2128,7 +2131,7 @@ class PFC(shadowKernels):
             pc[:,2] = tools.targetCtrs[:,2]*1000.0
             pc[:,3] = bdotn
             head = "X,Y,Z,targetBdotN"
-            np.savetxt(pcfile, pc, delimiter=',',fmt='%.10f', header=head)
+            tools.savetxt(pcfile, pc, delimiter=',',fmt='%.10f', header=head)
             tools.createVTKOutput(pcfile, 'points', 'tgtBdotN')
 
             #Norm Glyphs

@@ -415,13 +415,13 @@ class plasma3D:
 		src = path + '/' + '_lamCTL.dat'
 		dst = self.cwd + '/' + '_lamCTL.dat'
 		if os.path.isfile(src): 
-			shutil.copy(src, dst)
+			shutil.copyfile(src, dst)
 
 		#self.writeM3DC1supFile()
 		src = path + '/' + 'm3dc1sup.in'
 		dst = self.cwd + '/' + 'm3dc1sup.in'
 		if os.path.isfile(src): 
-			shutil.copy(src, dst)
+			shutil.copyfile(src, dst)
 
 		#self.writeCoilsupFile()
 
@@ -430,13 +430,13 @@ class plasma3D:
 			src = path + '/../' + 'lam_' + tag + '.dat'
 			dst = self.cwd + '/../' + 'lam_' + tag + '.dat'
 			if (not os.path.isfile(dst)) & os.path.isfile(src): 
-				shutil.copy(src, dst)
+				shutil.copyfile(src, dst)
 		
 		# main data
 		src = path + '/' + 'lam_' + tag + '.dat'
 		dst = self.cwd + '/' + 'lam_' + tag + '.dat'
 		if os.path.isfile(src): 
-			shutil.copy(src, dst)
+			shutil.copyfile(src, dst)
 		else:
 			print('MAFOT output file: ' + src + ' not found!')
 			log.info('MAFOT output file: ' + src + ' not found!')
@@ -951,7 +951,8 @@ class heatflux3D:
 			src = self.cwd + '/' + 'lam_' + tag + '.dat'
 			dst = self.cwd + '/../' + 'lam_' + tag + '.dat'
 			if os.path.isfile(src): 
-				shutil.move(src, dst)
+				shutil.copyfile(src, dst)
+				os.remove(src)
 		
 		if os.path.isfile(file): 
 			lamdata = np.genfromtxt(file,comments='#')
@@ -1149,8 +1150,9 @@ class heatflux3D:
 			src = self.cwd + '/' + 'lam_' + tag + '.dat'
 			dst = self.cwd + '/../' + 'lam_' + tag + '.dat'
 			if os.path.isfile(src): 
-				shutil.move(src, dst)
-		
+				shutil.copyfile(src, dst)
+				os.remove(src)
+	
 		# Read MAFOT data
 		if os.path.isfile(file): 
 			lamdata = np.genfromtxt(file,comments='#')
@@ -1313,8 +1315,9 @@ class heatflux3D:
 			src = self.cwd + '/' + 'lam_' + tag + '.dat'
 			dst = self.cwd + '/../' + 'lam_' + tag + '.dat'
 			if os.path.isfile(src): 
-				shutil.move(src, dst)
-		
+				shutil.copyfile(src, dst)
+				os.remove(src)
+	
 		# Read MAFOT data
 		if os.path.isfile(file): 
 			lamdata = np.genfromtxt(file,comments='#')
@@ -1420,8 +1423,9 @@ class heatflux3D:
 			src = self.cwd + '/' + 'lam_' + tag + '.dat'
 			dst = self.cwd + '/../' + 'lam_' + tag + '.dat'
 			if os.path.isfile(src): 
-				shutil.move(src, dst)
-		
+				shutil.copyfile(src, dst)
+				os.remove(src)
+	
 		if os.path.isfile(file): 
 			lamdata = np.genfromtxt(file,comments='#')
 			psimin = lamdata[:,4]
@@ -1500,7 +1504,8 @@ class heatflux3D:
 			src = self.cwd + '/' + 'lam_' + tag + '.dat'
 			dst = self.cwd + '/../' + 'lam_' + tag + '.dat'
 			if os.path.isfile(src): 
-				shutil.move(src, dst)
+				shutil.copyfile(src, dst)
+				os.remove(src)
 		
 		if os.path.isfile(file): 
 			lamdata = np.genfromtxt(file,comments='#')
