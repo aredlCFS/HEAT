@@ -222,8 +222,10 @@ class FEM:
             from subprocess import run
             run(args_mesh, env=current_env, cwd=self.elmerOutDir)		
         	run(args, env=current_env, cwd=self.elmerOutDir)
-			try:
-            	self.merge_Rex(name, SIFfile)
+            try:
+                self.merge_Rex(SIFfile)
+            except:
+                print('no ReX calcs were done')
         else:
             args = ['ElmerSolver', SIFfile]
             current_env = os.environ.copy()
